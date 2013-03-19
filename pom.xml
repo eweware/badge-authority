@@ -25,8 +25,8 @@
                 <includes><include>**/AwsCredentials.properties</include></includes>
             </resource>
             <resource>
-                <targetPath>main</targetPath>
-                <directory> ${basedir}/src/main/resources</directory>
+                <targetPath>.</targetPath>
+                <directory>${basedir}/src/main/resources</directory>
                 <includes><include>**/logging.properties</include></includes>
             </resource>
         </resources>
