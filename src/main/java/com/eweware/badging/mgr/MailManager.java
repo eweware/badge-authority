@@ -22,10 +22,7 @@ public final class MailManager {
 
     private static MailManager singleton;
 
-    public static MailManager getInstance() throws SystemErrorException {
-        if (MailManager.singleton == null) {
-            throw new SystemErrorException("mail manager not initialized");
-        }
+    public static MailManager getInstance() {
         return MailManager.singleton;
     }
 

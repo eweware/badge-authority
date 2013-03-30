@@ -15,13 +15,19 @@ public final class MongoStoreManager extends StoreManager {
 
     private static final Logger logger = Logger.getLogger("MongoStoreManager");
 
+    private static MongoStoreManager singleton;
+
     private final String hostname;
     private final Integer port;
     private final Integer connectionsPerHost;
+    private Mongo mongo;
     private String badgeDBName;
     private String badgeCollectionName;
-    private Mongo mongo;
+    private String transactionCollectionName;
+    private String applicationCollectionName;
     private DBCollection badgesCollection;
+    private DBCollection transactionCollection;
+    private DBCollection applicationCollection;
 
     public MongoStoreManager(
         String hostname,
@@ -31,17 +37,25 @@ public final class MongoStoreManager extends StoreManager {
         this.hostname = hostname;
         this.port = port;
         this.connectionsPerHost = connectionsPerHost;
+        singleton = this;
+    }
+
+    public static MongoStoreManager getInstance() {
+        return singleton;
     }
 
     public void start() {
         try {
             final MongoOptions mongoOptions = new MongoOptions();
             mongoOptions.connectionsPerHost = connectionsPerHost;
-            final ServerAddress serverAddress = new ServerAddress(SystemManager.getInstance().isDevMode() ? "localhost" : hostname, port);
+            final boolean devMode = SystemManager.getInstance().isDevMode();
+            final ServerAddress serverAddress = new ServerAddress(devMode ? "localhost" : hostname, port);
             mongo = new Mongo(serverAddress, mongoOptions);
             final DB db = mongo.getDB(getBadgeDBName());
             badgesCollection = db.getCollection(getBadgeCollectionName());
-            logger.info("MongoDB Status: " + db.command(new BasicDBObject("serverStatus", 1)));
+            transactionCollection = db.getCollection(getTransactionCollectionName());
+            applicationCollection = db.getCollection(getApplicationCollectionName());
+//            logger.info("MongoDB Status: " + db.command(new BasicDBObject("serverStatus", 1)));
 
             // Add a shutdown hook to keep it independent of Spring
             Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
@@ -49,6 +63,7 @@ public final class MongoStoreManager extends StoreManager {
                 public void run() {
                     if (mongo != null) {
                         mongo.close();
+                        logger.info("*** Closed MongoDB Driver ***");
                     }
                 }
             }));
@@ -59,7 +74,10 @@ public final class MongoStoreManager extends StoreManager {
     }
 
     public void shutdown() {
-        // mongo connections closed in shutdown hook
+        if (mongo != null) {
+            mongo.close();
+            logger.info("*** Closed MongoDB Driver via Spring shutdown ***");
+        }
         logger.info("*** StoreManager Shutdown ***");
     }
 
@@ -75,11 +93,35 @@ public final class MongoStoreManager extends StoreManager {
         return badgeCollectionName;
     }
 
-    public void setBadgeCollectionName(String badgeCollectionName) {
-        this.badgeCollectionName = badgeCollectionName;
+    public void setBadgeCollectionName(String name) {
+        this.badgeCollectionName = name;
     }
 
     public DBCollection getBadgesCollection() {
         return badgesCollection;
+    }
+
+    public String getTransactionCollectionName() {
+        return transactionCollectionName;
+    }
+
+    public void setTransactionCollectionName(String name) {
+        transactionCollectionName = name;
+    }
+
+    public DBCollection getTransactionCollection() {
+        return transactionCollection;
+    }
+
+    public String getApplicationCollectionName() {
+        return applicationCollectionName;
+    }
+
+    public void setApplicationCollectionName(String name) {
+        applicationCollectionName = name;
+    }
+
+    public DBCollection getAppCollection() {
+        return applicationCollection;
     }
 }
