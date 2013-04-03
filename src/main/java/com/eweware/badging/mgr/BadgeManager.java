@@ -317,7 +317,7 @@ public final class BadgeManager {
 
         final Object vcode = tx.get(TransactionDAO.VERIFICATION_CODE_FIELDNAME);
         if (verificationCode.equals(vcode.toString())) {
-            return Response.ok(createAndTransmitBadge(tx)).build();
+            return createAndTransmitBadge(tx);
         }
 
         final Date created = (Date) tx.get(TransactionDAO.TRANSACTION_STARTED_DATETIME_FIELDNAME);
