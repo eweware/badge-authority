@@ -8,7 +8,7 @@ public class TransactionDAO {
 
     public static final String ID_FIELDNAME = "_id";
     public static final String STATE_FIELDNAME = "S";
-    public static final String REQUESTING_APP_ID_FIELDNAME = "A";
+    public static final String SPONSOR_APP_ID_FIELDNAME = "A";
     public static final String TRANSACTION_STARTED_DATETIME_FIELDNAME = "C";
     public static final String VERIFICATION_CODE_FIELDNAME = "V";
     public static final String RETRY_COUNT_FIELDNAME = "R";

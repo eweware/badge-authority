@@ -4,7 +4,6 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
 import com.mongodb.WriteResult;
-import com.sun.jersey.api.client.ClientResponse;
 import main.java.com.eweware.badging.base.SystemErrorException;
 import main.java.com.eweware.badging.dao.ApplicationDAO;
 import main.java.com.eweware.badging.dao.BadgeDAO;
@@ -39,6 +38,12 @@ import java.util.logging.Logger;
 public final class BadgeManager {
 
     private static final Logger logger = Logger.getLogger("BadgeManager");
+    private static final String DEFAULT_SYSTEM_ERROR_MESSAGE = "<p>There was a technical difficulty in creating your badge. Please try later.</p>";
+    private static final String VERIFICATION_TIMEOUT_MESSAGE = "<p>Sorry, your verification code has expired.</p><p>Once you receive your email, you have ten minutes to enter the code.</p>";
+    private static final String APP_NOT_REGISTERED_ERROR_MESSAGE = "<p>Your badge request couldn't be handled because your sponsor is no longer registered in this badge authority</p>";
+    private static final String BADGE_GRANTED_BUT_NOT_ACCEPTED_BY_SPONSOR_APP = "<p>Your badge request has been granted, but due to a temporary condition, your sponsor failed to accept the badge.</p><p>You may try to create the badge again.</p>";
+    private static final String BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK = "<p>Your badge request has been granted. However, your sponsor has not been notified due to a network problem.</p>";
+    private static final String BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE = "<p>Congratulations! Your badge request has been granted.</p>";
 
     private static BadgeManager singleton;
 
@@ -115,7 +120,7 @@ public final class BadgeManager {
         }
         blahgua.put(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME, "v2/badges/add");
         blahgua.put(ApplicationDAO.PASSWORD_FIELDNAME, "sheep"); // TODO kludge. Replace with digest and salt.
-        blahgua.put(ApplicationDAO.REQUESTING_ENDPOINT_FIELDNAME, "beta.blahgua.com");
+        blahgua.put(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME, "beta.blahgua.com");
         blahgua.put(ApplicationDAO.STATUS_FIELDNAME, ApplicationDAO.STATUS_ACTIVE); // status := active
         blahgua.put(ApplicationDAO.CREATED_FIELDNAME, new Date());
         final WriteResult insert = appCollection.insert(blahgua);
@@ -187,15 +192,15 @@ public final class BadgeManager {
     /**
      * <p>First phase of badge creation transaction.</p>
      * <p>Initiates a badge creation transaction with an end user browser/app via
-     * the badge-requesting app.</p>
-     * @param appName   The username of the badge-requesting app.
-     * @param appPassword   The bad-requesting app's password.
+     * the badge-sponsor app.</p>
+     * @param appName   The username of the badge-sponsor app.
+     * @param appPassword   The bad-sponsor app's password.
      * @return  An entity containing either an error code or the HTML5 form
      * that initiates the transaction with the end user.
      */
     public Response initBadgingTransaction(String appName, String appPassword) {
 
-        if (!checkApplication(appName, appPassword)) {
+        if (!checkApplication(appName, appPassword)) {  // be harsh, be cruel
             return Response.status(Response.Status.UNAUTHORIZED).build();
         }
         final Map<String, Object> entity = new HashMap<String, Object>();
@@ -211,7 +216,7 @@ public final class BadgeManager {
 
         final DBObject tr = new BasicDBObject(TransactionDAO.ID_FIELDNAME, txToken);
         tr.put(TransactionDAO.STATE_FIELDNAME, TransactionDAO.STATE_PENDING_CREDENTIALS);    // state := pending getting email address
-        tr.put(TransactionDAO.REQUESTING_APP_ID_FIELDNAME, appName);  // app id := id of requesting app
+        tr.put(TransactionDAO.SPONSOR_APP_ID_FIELDNAME, appName);  // app id := id of sponsor app
         tr.put(TransactionDAO.TRANSACTION_STARTED_DATETIME_FIELDNAME, new Date());
         tr.put(TransactionDAO.RETRY_COUNT_FIELDNAME, 0);
         final WriteResult result = transactionCollection.insert(tr);
@@ -239,25 +244,25 @@ public final class BadgeManager {
 
         // First, validate the tx token to make sure we're dealing with a bona fide client
         if (txToken == null) {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
+            return makeGenericResponse("crednotok", null);
         }
         final DBObject queryTx = new BasicDBObject(TransactionDAO.ID_FIELDNAME, txToken);
         final DBObject tx = transactionCollection.findOne(queryTx);
         if (tx == null) {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
+            return makeGenericResponse("crednotokreg", null);
         }
         final Object state = tx.get(TransactionDAO.STATE_FIELDNAME);
         if (state == null || !state.equals(TransactionDAO.STATE_PENDING_CREDENTIALS)) {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
+            return makeGenericResponse("credstate1", null);
         }
         final Object created = tx.get(TransactionDAO.TRANSACTION_STARTED_DATETIME_FIELDNAME);
         if (created != null) { // check 15 minute timeout
             final Date c = (Date) created;
             if ((c.getTime() + FIFTEEN_MINUTES_IN_MS) < System.currentTimeMillis()) {
-                return Response.status(ClientResponse.Status.GATEWAY_TIMEOUT).build();
+                return makeGenericResponse(null, VERIFICATION_TIMEOUT_MESSAGE);
             }
         } else {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
+            return makeGenericResponse("credstate2", null);
         }
 
         if (!isEmailAddressValid(emailAddress)) {
@@ -270,7 +275,7 @@ public final class BadgeManager {
             SystemManager.getInstance().setSecureRandomBytes(rand);
         } catch (UnsupportedEncodingException e) {
             logger.log(Level.SEVERE, "Encryption error", e);
-            return Response.serverError().build();
+            return makeGenericResponse("credencode", null);
         }
         final String verificationCode = Base64.encodeBase64URLSafeString(rand);
 
@@ -282,7 +287,8 @@ public final class BadgeManager {
         update.put(TransactionDAO.USER_EMAIL_ADDRESS_FIELDNAME, emailAddress);
         final WriteResult wr = transactionCollection.update(queryTx, setter);
         if (wr.getError() != null) {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
+            logger.severe("Failed to update transaction token '" + txToken + "' code 'txupdb'. DB error: " + wr.getError());
+            return makeGenericResponse("txupdb", null);
         }
 
         // TODO Send verification email with the verificationCode
@@ -290,7 +296,7 @@ public final class BadgeManager {
             emailMgr.send(emailAddress, "Your Badging Request", makeEmailBody(verificationCode));
         } catch (MessagingException e) {
             logger.log(Level.SEVERE, "Failed to send email", e);
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
+            return makeGenericResponse("mai", null);
         }
 
         // Return HTML form requesting authorization code from user
@@ -301,12 +307,12 @@ public final class BadgeManager {
 
         // First, ensure we have a valid tx
         if (txToken == null) {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
+            return makeGenericResponse("vernotok", null);
         }
         final DBObject txQuery = new BasicDBObject(TransactionDAO.ID_FIELDNAME, txToken);
         final DBObject tx = transactionCollection.findOne(txQuery);
         if (tx == null) {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
+            return makeGenericResponse("vernotokreg", null);
         }
 
         final Object vcode = tx.get(TransactionDAO.VERIFICATION_CODE_FIELDNAME);
@@ -318,10 +324,10 @@ public final class BadgeManager {
         final Integer retries = (Integer) tx.get(TransactionDAO.RETRY_COUNT_FIELDNAME);
         if (retries != null && retries > 2) {
             transmitBadgeRefusal(tx, TransactionDAO.REFUSAL_TOO_MANY_RETRIES);
-            return Response.ok("<p>Sorry, too many attempts to enter verification code. Try again later.").build();
+            return makeGenericResponse(null, "<p>Sorry, too many attempts to enter verification code. Try again later.</p>");
         } else if ((created.getTime() + TEN_MINUTES_IN_MS) < System.currentTimeMillis()) {
             transmitBadgeRefusal(tx, TransactionDAO.REFUSAL_USER_TIMEOUT);
-            return Response.ok("<p>Sorry, your verification code has expired.</p><p>Once you receive your email, you have ten minutes to enter the code.</p>").build();
+            return makeGenericResponse(null, VERIFICATION_TIMEOUT_MESSAGE);
         }
 
         transactionCollection.update(txQuery, new BasicDBObject("$inc", new BasicDBObject(TransactionDAO.RETRY_COUNT_FIELDNAME, 1)));
@@ -329,15 +335,26 @@ public final class BadgeManager {
         return Response.ok(createVerificationCodeRequestForm(txToken, true)).build();
     }
 
+    private Response makeGenericResponse(String errorCode, String msg) {
+        final StringBuilder b = new StringBuilder((msg == null) ? DEFAULT_SYSTEM_ERROR_MESSAGE : msg);
+        if (errorCode != null) {
+            b.append("<div>Code ");
+            b.append(errorCode);
+            b.append("</div>");
+        }
+        b.append("<input type='button' onclick='ba_cancel_submit()' value='OK'/>");
+        return Response.ok(b.toString()).build();
+    }
+
     /**
-     * <p>Tells requestor that badge has been refused.</p>
+     * <p>Tells sponsor that badge has been refused.</p>
      * @param tx
      * @param newTxState
      */
     private void transmitBadgeRefusal(DBObject tx, String newTxState) {
 
         final String txId = (String) tx.get(TransactionDAO.ID_FIELDNAME);
-        final String appId = (String) tx.get(TransactionDAO.REQUESTING_APP_ID_FIELDNAME);
+        final String appId = (String) tx.get(TransactionDAO.SPONSOR_APP_ID_FIELDNAME);
 
         // Get/check app
         final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAO.ID_FIELDNAME, appId));
@@ -345,7 +362,7 @@ public final class BadgeManager {
             logger.warning("Ignored attempt to refuse badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
             return;
         }
-        final String endpoint = SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAO.REQUESTING_ENDPOINT_FIELDNAME);
+        final String endpoint = SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME);
         final String relativePath = (String) app.get(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
 
         // Update transaction
@@ -354,11 +371,11 @@ public final class BadgeManager {
         update.put("$inc", new BasicDBObject(TransactionDAO.RETRY_COUNT_FIELDNAME, 1));
         final WriteResult result = MongoStoreManager.getInstance().getTransactionCollection().update(txQuery, update);
         if (result.getError() != null) {
-            logger.severe("Error updating tx status (tx id '" + txId + "') in DB: " + result.getError());
+            logger.severe("Error updating tx status (tx id '" + txId + "') in DB; accepting tx anyway. DB error: " + result.getError());
             // fall through
         }
 
-        // Notify requesting app
+        // Notify sponsor app
         final Map<String, Object> entity = new HashMap<String, Object>();
         entity.put(BadgingNotificationEntity.TRANSACTION_ID_FIELDNAME, txId);
         entity.put(BadgingNotificationEntity.AUTHORITY_FIELDNAME, getDomain());
@@ -367,28 +384,28 @@ public final class BadgeManager {
         try {
             final int status = postBadgeCreationNotification(url, entity);
             if (status != HttpStatus.SC_ACCEPTED) { // Requestor dropped on the floor
-                logger.warning("Requesting app did not accept badge refusal. Returned http status=" + status);
+                logger.warning("Sponsor app did not accept badge refusal. Returned http status=" + status);
                 // TODO roll back?
             }
         } catch (SystemErrorException e) {
-            logger.log(Level.SEVERE, "Failed to post badge id refusal to requesting url '" + url + "'.", e);
+            logger.log(Level.SEVERE, "Failed to post badge id refusal to sponsor url '" + url + "'.", e);
             // TODO roll back?
         }
     }
 
-    private String createAndTransmitBadge(DBObject tx) {
+    private Response createAndTransmitBadge(DBObject tx) {
 
         final String txId = (String) tx.get(TransactionDAO.ID_FIELDNAME);
         final String email = (String) tx.get(TransactionDAO.USER_EMAIL_ADDRESS_FIELDNAME);
-        final String appId = (String) tx.get(TransactionDAO.REQUESTING_APP_ID_FIELDNAME);
+        final String appId = (String) tx.get(TransactionDAO.SPONSOR_APP_ID_FIELDNAME);
 
         // Get/check app
         final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAO.ID_FIELDNAME, appId));
         if (app == null) {
             logger.warning("Ignored attempt to complete badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
-            return "<p>Your badge request couldn't be handled because your sponsor is no longer registered in this badge authority</p>";
+            return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE);
         }
-        final String endpoint = SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAO.REQUESTING_ENDPOINT_FIELDNAME);
+        final String endpoint = SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME);
         final String relativePath = (String) app.get(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
 
         // Create badge
@@ -398,9 +415,8 @@ public final class BadgeManager {
         badge.put(BadgeDAO.CREATED_DATETIME_FIELDNAME, new Date());
         badge.put(BadgeDAO.REQUESTING_APP_ID, appId);
         final WriteResult insert = badgeCollection.insert(badge);
-        final String error = insert.getError();
-        if (error != null) {
-            logger.severe("Error inserting badge for user '" + email + "': " + error);
+        if (insert.getError() != null) {
+            logger.severe("DB error inserting granted badge for user '" + email + "' tx id '" + txId + "' appId '" + appId + "'. DB error: " + insert.getError());
             final Map<String, Object> entity = new HashMap<String, Object>();
             entity.put(BadgingNotificationEntity.TRANSACTION_ID_FIELDNAME, txId);
             entity.put(BadgingNotificationEntity.STATE_FIELDNAME, BadgingNotificationEntity.STATE_SERVER_ERROR);
@@ -408,12 +424,13 @@ public final class BadgeManager {
             try {
                 final int status = postBadgeCreationNotification(url, entity);
                 if (status != HttpStatus.SC_ACCEPTED) {
-                    logger.warning("Requesting app '" + appId + "' at '" + url + "' did not accept notification of server db error. No recovery needed. Returned http status=" + status);
-                    return "<p>Sorry, your badge request could not be granted due to a technical problem. Please try again later.</p>";
+                    logger.warning("Sponsor app '" + appId + "' at '" + url + "' tx id '"+txId+"' did not accept notification of server db error. No recovery needed. Returned http status=" + status);
+                    return makeGenericResponse("badstat-" + status, null);
                 }
             } catch (SystemErrorException e) {
-                logger.warning("Error while posting server db error msg to requesting app '" + appId + "' at '" + url + "' for transaction id='" + txId);
-                return "<p>Sorry, your badge request could not be granted due to a technical problem. Please try again later.</p>";
+                logger.warning("Error while posting server db error msg to sponsor app '" + appId + "' at '" + url + "' for transaction id='" + txId);
+                final String code = "syscode-" + ((e.getErrorCode() == null) ? "" : e.getErrorCode().toString());
+                return makeGenericResponse(code, null);
             }
         }
         final String badgeId = badge.get(BadgeDAO.ID_FIELDNAME).toString();
@@ -422,11 +439,11 @@ public final class BadgeManager {
         final DBObject txQuery = new BasicDBObject(TransactionDAO.ID_FIELDNAME, txId);
         final WriteResult result = MongoStoreManager.getInstance().getTransactionCollection().update(txQuery, new BasicDBObject("$set", new BasicDBObject(TransactionDAO.STATE_FIELDNAME, TransactionDAO.STATE_AWARDED_BADGE)));
         if (result.getError() != null) {
-            logger.severe("Error updating tx status (tx id '" + txId + "') in DB: " + result.getError());
+            logger.severe("Error updating tx id '" + txId + "' status for sponsor app '"+appId+"'. Ignored. DB error: " + result.getError());
             // fall through anyway
         }
 
-        // Transmit badge to requesting app
+        // Transmit badge to sponsor app
         final String emailDomain = getEmailDomain(email);
         final Map<String, Object> entity = new HashMap<String, Object>();
         entity.put(BadgingNotificationEntity.TRANSACTION_ID_FIELDNAME, txId);
@@ -436,17 +453,19 @@ public final class BadgeManager {
         entity.put(BadgingNotificationEntity.STATE_FIELDNAME, BadgingNotificationEntity.STATE_GRANTED); // status = granted
         entity.put(BadgingNotificationEntity.EXPIRATION_DATETIME_FIELDNAME, DateUtils.formatDateTime(expires)); // badge expiration date
         final String url = "http://" + endpoint + "/" + relativePath;
+        int status = 0;
         try {
-            final int status = postBadgeCreationNotification(url, entity);
-            if (status != HttpStatus.SC_ACCEPTED) { // Requestor dropped on the floor
-                logger.warning("Requesting app '" + appId + "' did not accept badge id '" + badgeId + "'. Returned http status=" + status);
-                return "<p>Your badge request has been granted, but your sponsor refused to accept the badge.</p>";
-            }
+            status = postBadgeCreationNotification(url, entity);
         } catch (SystemErrorException e) {
-            logger.log(Level.SEVERE, "Failed to post badge id '" + badgeId + "' for app '" + appId + "' at requesting url '" + url + "'.", e);
-            return "<p>Your badge request has been granted. However, your sponsor has not been notified due to a network problem.</p>";
+            logger.log(Level.SEVERE, "Failed to notify (POST) granted badge id '" + badgeId + "' to app '" + appId + "' at app url '" + url + "'.", e);
+            return makeGenericResponse(null, BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK);
         }
-        return "<p>Congratulations! Your badge request has been granted.</p>";
+        if (status != HttpStatus.SC_ACCEPTED) { // Requestor dropped on the floor
+            logger.warning("Sponsor app '" + appId + "' did not accept badge id '" + badgeId + "'. Returned http status=" + status);
+            final String code = "blastat-" + status;
+            return makeGenericResponse(code, BADGE_GRANTED_BUT_NOT_ACCEPTED_BY_SPONSOR_APP);
+        }
+        return makeGenericResponse(null, BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE);
     }
 
     private static String getEmailDomain(String email) {
@@ -469,7 +488,7 @@ public final class BadgeManager {
 
     /**
      * <p>This form is sent to the browser (or app) of the user to be badged
-     * via the badge-requesting app.</p>
+     * via the badge-sponsor app.</p>
      *
      * @param txToken The token identifying this transaction.
      * @param invalidEmail
@@ -511,7 +530,7 @@ public final class BadgeManager {
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
         b.append("<div>Enter the verification code in the email sent to you: <input name='code' onchange='ba_verification_code = this.value' type='text' size='30' /></div>");
         b.append("  <div>");
-        b.append("    <input type='hidden' id='ba_tk' name='end' value='" + getRestEndpoint() + "'/>");
+        b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_tk' name='tk' value='" + txToken + "'/>");
         b.append("    <input type='submit' onclick='ba_submit2(); return false' value='Submit'/>");
         b.append("    <input type='button' onclick='ba_cancel_submit()' value='Cancel'/>");

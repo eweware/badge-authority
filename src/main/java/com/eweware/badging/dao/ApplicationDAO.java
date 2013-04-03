@@ -13,7 +13,7 @@ public class ApplicationDAO {
 
     public static final String BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME = "P"; /* e.g., "badges/add" */
 
-    public static final String REQUESTING_ENDPOINT_FIELDNAME = "E"; /* e.g., "beta.blahgua.com" */
+    public static final String SPONSOR_ENDPOINT_FIELDNAME = "E"; /* e.g., "beta.blahgua.com" */
 
     public static final String STATUS_FIELDNAME = "S";
 
