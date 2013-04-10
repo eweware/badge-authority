@@ -17,8 +17,11 @@ function ba_submit2() {
   ba_rest('POST', endpoint + '/badges/verify'+query, null, ba_okf, ba_errf);
 }
 
-function ba_cancel_submit() {
+function ba_cancel_submit(code) {
     document.getElementById('ba_form').remove();
+    if (ba_dialog_closed) {
+         ba_dialog_closed(code);
+    }
 }
 
 function ba_okf(result, a, b) {

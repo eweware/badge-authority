@@ -253,16 +253,16 @@ public final class BadgeManager {
         }
         final Object state = tx.get(TransactionDAO.STATE_FIELDNAME);
         if (state == null || !state.equals(TransactionDAO.STATE_PENDING_CREDENTIALS)) {
-            return makeGenericResponse("credstate1", null);
+            return makeGenericResponse("credstateconflict", null);
         }
         final Object created = tx.get(TransactionDAO.TRANSACTION_STARTED_DATETIME_FIELDNAME);
         if (created != null) { // check 15 minute timeout
             final Date c = (Date) created;
             if ((c.getTime() + FIFTEEN_MINUTES_IN_MS) < System.currentTimeMillis()) {
-                return makeGenericResponse(null, VERIFICATION_TIMEOUT_MESSAGE);
+                return makeGenericResponse("credtimeout", VERIFICATION_TIMEOUT_MESSAGE);
             }
         } else {
-            return makeGenericResponse("credstate2", null);
+            return makeGenericResponse("crednocreate", null);
         }
 
         if (!isEmailAddressValid(emailAddress)) {
@@ -324,10 +324,10 @@ public final class BadgeManager {
         final Integer retries = (Integer) tx.get(TransactionDAO.RETRY_COUNT_FIELDNAME);
         if (retries != null && retries > 2) {
             transmitBadgeRefusal(tx, TransactionDAO.REFUSAL_TOO_MANY_RETRIES);
-            return makeGenericResponse(null, "<p>Sorry, too many attempts to enter verification code. Try again later.</p>");
+            return makeGenericResponse("vertoomanyattempts", "<p>Sorry, too many attempts to enter verification code. Try again later.</p>");
         } else if ((created.getTime() + TEN_MINUTES_IN_MS) < System.currentTimeMillis()) {
             transmitBadgeRefusal(tx, TransactionDAO.REFUSAL_USER_TIMEOUT);
-            return makeGenericResponse(null, VERIFICATION_TIMEOUT_MESSAGE);
+            return makeGenericResponse("vertimeout", VERIFICATION_TIMEOUT_MESSAGE);
         }
 
         transactionCollection.update(txQuery, new BasicDBObject("$inc", new BasicDBObject(TransactionDAO.RETRY_COUNT_FIELDNAME, 1)));
@@ -335,14 +335,15 @@ public final class BadgeManager {
         return Response.ok(createVerificationCodeRequestForm(txToken, true)).build();
     }
 
+    // Expects non-null errorCode!
     private Response makeGenericResponse(String errorCode, String msg) {
         final StringBuilder b = new StringBuilder((msg == null) ? DEFAULT_SYSTEM_ERROR_MESSAGE : msg);
-        if (errorCode != null) {
-            b.append("<div>Code ");
-            b.append(errorCode);
-            b.append("</div>");
-        }
-        b.append("<input type='button' onclick='ba_cancel_submit()' value='OK'/>");
+        b.append("<div>Code ");
+        b.append(errorCode);
+        b.append("</div>");
+        b.append("<input type='button' onclick='ba_cancel_submit(\"");
+        b.append(errorCode);
+        b.append("\")' value='OK'/>");
         return Response.ok(b.toString()).build();
     }
 
@@ -458,14 +459,14 @@ public final class BadgeManager {
             status = postBadgeCreationNotification(url, entity);
         } catch (SystemErrorException e) {
             logger.log(Level.SEVERE, "Failed to notify (POST) granted badge id '" + badgeId + "' to app '" + appId + "' at app url '" + url + "'.", e);
-            return makeGenericResponse(null, BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK);
+            return makeGenericResponse("notifyerror", BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK);
         }
         if (status != HttpStatus.SC_ACCEPTED) { // Requestor dropped on the floor
             logger.warning("Sponsor app '" + appId + "' did not accept badge id '" + badgeId + "'. Returned http status=" + status);
-            final String code = "blastat-" + status;
+            final String code = "notifynotaccepted-" + status;
             return makeGenericResponse(code, BADGE_GRANTED_BUT_NOT_ACCEPTED_BY_SPONSOR_APP);
         }
-        return makeGenericResponse(null, BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE);
+        return makeGenericResponse("granted", BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE);
     }
 
     private static String getEmailDomain(String email) {
@@ -513,7 +514,7 @@ public final class BadgeManager {
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_tk' name='tk' value='" + txToken + "'/>");
         b.append("    <input type='submit' onclick='ba_submit1(); return false' value='Submit'/>");
-        b.append("    <input type='button' onclick='ba_cancel_submit()' value='Cancel'/>");
+        b.append("    <input type='button' onclick='ba_cancel_submit(\"credentials\")' value='Cancel'/>");
         b.append("  </div>");
         b.append("</form>");
         return b.toString();
@@ -533,7 +534,7 @@ public final class BadgeManager {
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_tk' name='tk' value='" + txToken + "'/>");
         b.append("    <input type='submit' onclick='ba_submit2(); return false' value='Submit'/>");
-        b.append("    <input type='button' onclick='ba_cancel_submit()' value='Cancel'/>");
+        b.append("    <input type='button' onclick='ba_cancel_submit(\"verification\")' value='Cancel'/>");
         b.append("  </div>");
         b.append("</form>");
         return b.toString();
