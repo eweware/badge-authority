@@ -18,9 +18,11 @@ function ba_submit2() {
 }
 
 function ba_cancel_submit(code) {
-    document.getElementById('ba_form').remove();
     if (ba_dialog_closed) {
          ba_dialog_closed(code);
+    } else {
+       $("#badgedialog").empty();
+       throw "missing ba_dialog_closed";
     }
 }
 
