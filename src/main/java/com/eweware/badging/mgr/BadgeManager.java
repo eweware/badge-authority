@@ -16,8 +16,15 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.conn.ClientConnectionManager;
+import org.apache.http.conn.params.ConnManagerPNames;
+import org.apache.http.conn.scheme.PlainSocketFactory;
+import org.apache.http.conn.scheme.Scheme;
+import org.apache.http.conn.scheme.SchemeRegistry;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.conn.PoolingClientConnectionManager;
+import org.apache.http.params.CoreConnectionPNames;
+import org.apache.http.params.HttpParams;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import javax.mail.MessagingException;
@@ -66,7 +73,12 @@ public final class BadgeManager {
     private DBCollection appCollection;
     private MailManager emailMgr;
     private DefaultHttpClient client;
-    private ClientConnectionManager connectionManager;
+//    private ClientConnectionManager connectionManager;
+    private PoolingClientConnectionManager connectionPoolMgr;
+    private Integer maxHttpConnections;
+    private Integer maxHttpConnectionsPerRoute;
+    private Integer httpConnectionTimeoutInMs;
+    private Integer devBlahguarestPort;
 
     public BadgeManager(
             String devEndpoint,
@@ -132,8 +144,8 @@ public final class BadgeManager {
     }
 
     public void shutdown() {
-        if (connectionManager != null) {
-            connectionManager.shutdown();
+        if (connectionPoolMgr != null) {
+            connectionPoolMgr.shutdown();
         }
         logger.info("*** BadgeManager Shutdown ***");
     }
@@ -181,7 +193,8 @@ public final class BadgeManager {
             // TODO authority should process the error code and return error info or log it here
             return statusCode;
         } catch (Exception e) {
-            throw new SystemErrorException("failed to post", e);
+            post.abort();
+            throw new SystemErrorException("failed to post badge creation notification to sponsoring app; endpoint '" + endpoint + "'; data='" + map + "'", e);
         } finally {
             if (post != null) {
                 post.releaseConnection();
@@ -553,16 +566,77 @@ public final class BadgeManager {
     }
 
     private void startHttpClient() {
-        client = new DefaultHttpClient();
-        connectionManager = client.getConnectionManager();
-        // double insurance:
+        final SchemeRegistry schemeRegistry = new SchemeRegistry();
+        schemeRegistry.register(new Scheme("http", 80, PlainSocketFactory.getSocketFactory()));
+        if (SystemManager.getInstance().isDevMode()) { // Debug blahguarest port 8080
+            schemeRegistry.register(new Scheme("http", getDevBlahguarestPort(), PlainSocketFactory.getSocketFactory()));
+        }
+        connectionPoolMgr = new PoolingClientConnectionManager(schemeRegistry);
+        connectionPoolMgr.setMaxTotal(getMaxHttpConnections()); // maximum total connections
+        connectionPoolMgr.setDefaultMaxPerRoute(getMaxHttpConnectionsPerRoute()); // maximumconnections per route
+
+        // Create a client that can be shared by multiple threads
+        client = new DefaultHttpClient(connectionPoolMgr);
+
+        // Set timeouts (if not set, thread may block forever)
+        final HttpParams httpParams = client.getParams();
+        httpParams.setIntParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, getHttpConnectionTimeoutInMs());
+        httpParams.setLongParameter(ConnManagerPNames.TIMEOUT, getHttpConnectionTimeoutInMs());
+        httpParams.setIntParameter(CoreConnectionPNames.SO_TIMEOUT, getHttpConnectionTimeoutInMs());
+
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
             @Override
             public void run() {
-                if (connectionManager != null) {
-                    connectionManager.shutdown();
+                if (connectionPoolMgr != null) {
+                    connectionPoolMgr.shutdown();
                 }
             }
         }));
+    }
+
+//    private void startHttpClient() {
+//        client = new DefaultHttpClient();
+//        connectionManager = client.getConnectionManager();
+//        // double insurance:
+//        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+//            @Override
+//            public void run() {
+//                if (connectionManager != null) {
+//                    connectionManager.shutdown();
+//                }
+//            }
+//        }));
+//    }
+
+    public Integer getMaxHttpConnections() {
+        return maxHttpConnections;
+    }
+
+    public void setMaxHttpConnections(Integer maxHttpConnections) {
+        this.maxHttpConnections = maxHttpConnections;
+    }
+
+    public Integer getMaxHttpConnectionsPerRoute() {
+        return maxHttpConnectionsPerRoute;
+    }
+
+    public void setMaxHttpConnectionsPerRoute(Integer maxHttpConnectionsPerRoute) {
+        this.maxHttpConnectionsPerRoute = maxHttpConnectionsPerRoute;
+    }
+
+    public Integer getHttpConnectionTimeoutInMs() {
+        return httpConnectionTimeoutInMs;
+    }
+
+    public void setHttpConnectionTimeoutInMs(Integer httpConnectionTimeoutInMs) {
+        this.httpConnectionTimeoutInMs = httpConnectionTimeoutInMs;
+    }
+
+    public Integer getDevBlahguarestPort() {
+        return devBlahguarestPort;
+    }
+
+    public void setDevBlahguarestPort(Integer port) {
+        this.devBlahguarestPort = port;
     }
 }

@@ -22,6 +22,7 @@
         <property name="badgeCollectionName" value="${badging.store.mongo.badgeCollectionName}" />
         <property name="transactionCollectionName" value="${badging.store.mongo.transactionCollectionName}" />
         <property name="applicationCollectionName" value="${badging.store.mongo.applicationCollectionName}" />
+        <property name="usingReplica" value="${badging.store.mongo.usingReplica}" />
     </bean>
 
     <bean id="mailManager" class="main.java.com.eweware.badging.mgr.MailManager"
@@ -44,6 +45,10 @@
         <constructor-arg value="${badging.mgr.domain}" />
         <constructor-arg value="${badging.mgr.dev.blahgua.domain}" />
         <constructor-arg value="${badging.mgr.endpoint.version}" />
+        <property name="maxHttpConnections" value="${badging.mgr.http.max.connections}"/>
+        <property name="maxHttpConnectionsPerRoute" value="${badging.mgr.http.max.connections.per.route}"/>
+        <property name="httpConnectionTimeoutInMs" value="${badging.mgr.http.connection.timeout.in.ms}"/>
+        <property name="devBlahguarestPort" value="${badging.mgr.localhost.dev.blahguarest.port}"/>
     </bean>
 
 </beans>

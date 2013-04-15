@@ -28,6 +28,7 @@ public final class MongoStoreManager extends StoreManager {
     private DBCollection badgesCollection;
     private DBCollection transactionCollection;
     private DBCollection applicationCollection;
+    private boolean usingReplica;
 
     public MongoStoreManager(
         String hostname,
@@ -46,11 +47,18 @@ public final class MongoStoreManager extends StoreManager {
 
     public void start() {
         try {
-            final MongoOptions mongoOptions = new MongoOptions();
-            mongoOptions.connectionsPerHost = connectionsPerHost;
             final boolean devMode = SystemManager.getInstance().isDevMode();
+
+            final MongoClientOptions.Builder builder = new MongoClientOptions.Builder().connectionsPerHost(connectionsPerHost);
+            if (getUsingReplica()) {
+                builder
+                        .readPreference(ReadPreference.primaryPreferred()) // tries to read from primary
+                        .writeConcern(WriteConcern.MAJORITY);      // Writes to secondaries before returning
+                logger.info("*** Connecting to replica set ***");
+            }
             final ServerAddress serverAddress = new ServerAddress(devMode ? "localhost" : hostname, port);
-            mongo = new Mongo(serverAddress, mongoOptions);
+            this.mongo = new MongoClient(serverAddress, builder.build());
+
             final DB db = mongo.getDB(getBadgeDBName());
             badgesCollection = db.getCollection(getBadgeCollectionName());
             transactionCollection = db.getCollection(getTransactionCollectionName());
@@ -79,6 +87,14 @@ public final class MongoStoreManager extends StoreManager {
             logger.info("*** Closed MongoDB Driver via Spring shutdown ***");
         }
         logger.info("*** StoreManager Shutdown ***");
+    }
+
+    public boolean getUsingReplica() {
+        return usingReplica;
+    }
+
+    public void setUsingReplica(boolean usingReplica) {
+        this.usingReplica = usingReplica;
     }
 
     public String getBadgeDBName() {
