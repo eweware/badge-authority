@@ -3,6 +3,10 @@ package main.java.com.eweware.badging.mgr;
 import com.mongodb.*;
 
 import javax.xml.ws.WebServiceException;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.logging.Logger;
 
 /**
@@ -17,9 +21,18 @@ public final class MongoStoreManager extends StoreManager {
 
     private static MongoStoreManager singleton;
 
-    private final String hostname;
+    /**
+     * MongoDB port
+     */
     private final Integer port;
+
     private final Integer connectionsPerHost;
+
+    /**
+     * Hostname(s) for DB. This might be a set of instances in a replica set.
+     */
+    private List<String> hostnames = new ArrayList<String>();
+
     private Mongo mongo;
     private String badgeDBName;
     private String badgeCollectionName;
@@ -28,14 +41,21 @@ public final class MongoStoreManager extends StoreManager {
     private DBCollection badgesCollection;
     private DBCollection transactionCollection;
     private DBCollection applicationCollection;
+
+    /**
+     * Are we using a replica set config?
+     */
     private boolean usingReplica;
 
     public MongoStoreManager(
-        String hostname,
+        String hostnames,
         Integer port,
         Integer connectionsPerHost
     ) {
-        this.hostname = hostname;
+        if (hostnames == null || hostnames.length() == 0) {
+            throw new WebServiceException("Failed to start store manager: missing hostnames");
+        }
+        this.hostnames = Arrays.asList(hostnames.split("\\|"));
         this.port = port;
         this.connectionsPerHost = connectionsPerHost;
         singleton = this;
@@ -48,16 +68,21 @@ public final class MongoStoreManager extends StoreManager {
     public void start() {
         try {
             final boolean devMode = SystemManager.getInstance().isDevMode();
-
             final MongoClientOptions.Builder builder = new MongoClientOptions.Builder().connectionsPerHost(connectionsPerHost);
+            List<ServerAddress> serverAddresses = new ArrayList<ServerAddress>();
+            for (String hostname : hostnames) {
+                serverAddresses.add(new ServerAddress(hostname, port));
+            }
             if (getUsingReplica()) {
                 builder
                         .readPreference(ReadPreference.primaryPreferred()) // tries to read from primary
-                        .writeConcern(WriteConcern.MAJORITY);      // Writes to secondaries before returning
-                logger.info("*** Connecting to replica set ***");
+                        .writeConcern(WriteConcern.MAJORITY);              // Writes to secondaries before returning
+                logger.info("*** Connecting to hostname(s) in replica set: " + hostnames + " port=" + port + " ***");
+            } else {
+                serverAddresses.add(new ServerAddress(devMode ? "localhost" : hostnames.get(0), port));
+                logger.info("*** Connecting to standalone DB instance: " + hostnames.get(0) + ":" + port);
             }
-            final ServerAddress serverAddress = new ServerAddress(devMode ? "localhost" : hostname, port);
-            this.mongo = new MongoClient(serverAddress, builder.build());
+            this.mongo = new MongoClient(serverAddresses, builder.build());
 
             final DB db = mongo.getDB(getBadgeDBName());
             badgesCollection = db.getCollection(getBadgeCollectionName());
@@ -76,8 +101,10 @@ public final class MongoStoreManager extends StoreManager {
                 }
             }));
             logger.info("*** StoreManager Started ***");
+        } catch (UnknownHostException e) {
+            throw new WebServiceException("Failed to start store manager due to unknown DB hostname; hostname(s)=" + hostnames, e);
         } catch (Exception e) {
-            throw new WebServiceException("Failed to start", e);
+            throw new WebServiceException("Failed to start store manager", e);
         }
     }
 

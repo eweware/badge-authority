@@ -15,7 +15,7 @@
 
     <bean id="mongoStoreManager" class="main.java.com.eweware.badging.mgr.MongoStoreManager"
           init-method="start" destroy-method="shutdown">
-        <constructor-arg  type="java.lang.String" value="${badging.store.mongo.hostname}" />
+        <constructor-arg  type="java.lang.String" value="${badging.store.mongo.hostnames}" />
         <constructor-arg  type="java.lang.Integer" value="${badging.store.mongo.port}" />
         <constructor-arg  type="java.lang.Integer" value="${badging.store.mongo.connectionsPerHost}" />
         <property name="badgeDBName" value="${badging.store.mongo.badgesDbName}" />

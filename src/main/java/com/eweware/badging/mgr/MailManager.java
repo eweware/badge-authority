@@ -8,6 +8,7 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import javax.xml.ws.WebServiceException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.Properties;
@@ -134,34 +135,37 @@ public final class MailManager {
             body.append("<div/>");
             final String recipient = devMode ? "rk@eweware.com" : "rk@eweware.com, davevr@eweware.com";
             send(recipient, subject.toString(), body.toString());
-        } catch (SendFailedException e) {
-        } catch (Exception e) {
-            throw new SystemErrorException(e);
+        } catch (UnknownHostException e) {
+            throw new SystemErrorException("Couldn't send email to unknown local host", e);
+        } catch (MessagingException e) {
+            throw new SystemErrorException("Failed to send email due to message error", e);
         }
     }
 
     public void start() {
 
-        System.out.print("*** MailManager ");
-        if (doNotActivate) {
-            System.out.println("Disabled ***");
-            return;
-        }
-        System.out.println("Enabled ***");
-        session = Session.getInstance(props,
-                new javax.mail.Authenticator() {
-                    @Override
-                    public PasswordAuthentication getPasswordAuthentication() {
-                        return new PasswordAuthentication(account, password);
-                    }
-                });
-        state = ManagerState.STARTED;
-        System.out.println("*** MailManager started ***");
-
         try {
-            test();
-        } catch (SystemErrorException e) {
-            throw new WebServiceException(e);
+            System.out.print("*** MailManager ");
+            if (doNotActivate) {
+                System.out.println("Disabled ***");
+                return;
+            }
+            System.out.println("Enabled ***");
+            session = Session.getInstance(props,
+                    new Authenticator() {
+                        @Override
+                        public PasswordAuthentication getPasswordAuthentication() {
+                            return new PasswordAuthentication(account, password);
+                        }
+                    });
+            state = ManagerState.STARTED;
+
+            if (!doNotActivate) {
+                test();
+            }
+            System.out.println("*** MailManager started ***");
+        } catch (Exception e) {
+            throw new WebServiceException("Failed to start mail manager", e);
         }
     }
 

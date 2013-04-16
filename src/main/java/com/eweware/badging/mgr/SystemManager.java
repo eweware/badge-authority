@@ -51,7 +51,7 @@ public final class SystemManager {
     }
 
     public byte[] setSecureRandomBytes(byte[] rand) throws UnsupportedEncodingException {
-        // TODO reseed this once in a while
+        // TODO reseed this once in a while?
         randomizer.nextBytes(rand);
         return rand;
     }

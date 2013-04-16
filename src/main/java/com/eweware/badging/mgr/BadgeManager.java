@@ -102,25 +102,29 @@ public final class BadgeManager {
     }
 
     public void start() {
-        this.endpoint = SystemManager.getInstance().isDevMode() ? devEndpoint : endpoint;
-        this.domain = SystemManager.getInstance().isDevMode() ? devDomain : domain;
-        this.restEndpoint = this.endpoint + "/" + this.endpointVersion;
-        final MongoStoreManager storeManager = MongoStoreManager.getInstance();
-        if (storeManager == null) {
-            logger.severe("BadgeManager: Start preconditions failed");
-            throw new WebServiceException("Start preconditions failed");
+        try {
+            this.endpoint = SystemManager.getInstance().isDevMode() ? devEndpoint : endpoint;
+            this.domain = SystemManager.getInstance().isDevMode() ? devDomain : domain;
+            this.restEndpoint = this.endpoint + "/" + this.endpointVersion;
+            final MongoStoreManager storeManager = MongoStoreManager.getInstance();
+            if (storeManager == null) {
+                logger.severe("BadgeManager: Start preconditions failed");
+                throw new WebServiceException("Start preconditions failed");
+            }
+            this.badgeCollection = storeManager.getBadgesCollection();
+            this.transactionCollection = storeManager.getTransactionCollection();
+            this.appCollection = storeManager.getAppCollection();
+            this.emailMgr = MailManager.getInstance();
+            if (badgeCollection == null || transactionCollection == null || appCollection == null || emailMgr == null) {
+                logger.severe("BadgeManager: Start preconditions failed");
+                throw new WebServiceException("Start preconditions failed");
+            }
+            startHttpClient();
+            maybeRegisterBlahguaApp();
+            logger.info("*** BadgeManager Started (rest endpoint @" + restEndpoint + ") ***");
+        } catch (Exception e) {
+            throw new WebServiceException("Failed to start badge manager", e);
         }
-        this.badgeCollection = storeManager.getBadgesCollection();
-        this.transactionCollection = storeManager.getTransactionCollection();
-        this.appCollection = storeManager.getAppCollection();
-        this.emailMgr = MailManager.getInstance();
-        if (badgeCollection == null || transactionCollection == null || appCollection == null || emailMgr == null) {
-            logger.severe("BadgeManager: Start preconditions failed");
-            throw new WebServiceException("Start preconditions failed");
-        }
-        startHttpClient();
-        maybeRegisterBlahguaApp();
-        logger.info("*** BadgeManager Started (rest endpoint @" + restEndpoint + ") ***");
     }
 
     /** Simple kludge to register blahgua.com */
