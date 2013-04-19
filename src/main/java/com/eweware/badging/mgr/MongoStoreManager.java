@@ -33,7 +33,7 @@ public final class MongoStoreManager extends StoreManager {
      */
     private List<String> hostnames = new ArrayList<String>();
 
-    private Mongo mongo;
+    private MongoClient mongo;
     private String badgeDBName;
     private String badgeCollectionName;
     private String transactionCollectionName;
