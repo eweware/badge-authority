@@ -543,6 +543,9 @@ public final class BadgeManager {
      * @return
      */
     private Object createBadge(String badgeName, String badgeType, Date expires, String appId, String txId, String relativePath) {
+        if (badgeType.equals(BadgeDAO.BADGE_TYPE_EMAIL)) {
+            badgeName = getEmailDomain(badgeName);
+        }
         final DBObject badge = new BasicDBObject(BadgeDAO.BADGE_NAME_FIELDNAME, badgeName);
         badge.put(BadgeDAO.EXPIRATION_DATETIME_FIELDNAME, expires);
         badge.put(BadgeDAO.BADGE_TYPE_FIELDNAME, badgeType);
