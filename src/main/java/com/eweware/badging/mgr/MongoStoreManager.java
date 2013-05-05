@@ -38,9 +38,11 @@ public final class MongoStoreManager extends StoreManager {
     private String badgeCollectionName;
     private String transactionCollectionName;
     private String applicationCollectionName;
+    private String graphCollectionName;
     private DBCollection badgesCollection;
     private DBCollection transactionCollection;
     private DBCollection applicationCollection;
+    private DBCollection graphCollection;
 
     /**
      * Are we using a replica set config?
@@ -88,6 +90,7 @@ public final class MongoStoreManager extends StoreManager {
             badgesCollection = db.getCollection(getBadgeCollectionName());
             transactionCollection = db.getCollection(getTransactionCollectionName());
             applicationCollection = db.getCollection(getApplicationCollectionName());
+            graphCollection = db.getCollection(getGraphCollectionName());
 //            logger.info("MongoDB Status: " + db.command(new BasicDBObject("serverStatus", 1)));
 
             // Add a shutdown hook to keep it independent of Spring
@@ -166,5 +169,17 @@ public final class MongoStoreManager extends StoreManager {
 
     public DBCollection getAppCollection() {
         return applicationCollection;
+    }
+
+    public String getGraphCollectionName() {
+        return graphCollectionName;
+    }
+
+    public void setGraphCollectionName(String name) {
+        graphCollectionName = name;
+    }
+
+    public DBCollection getGraphCollection() {
+        return graphCollection;
     }
 }

@@ -1,5 +1,7 @@
 package main.java.com.eweware.badging.payload;
 
+import main.java.com.eweware.badging.dao.BadgeDAO;
+
 /**
  * @author rk@post.harvard.edu
  *         Date: 3/24/13 Time: 5:04 PM
@@ -17,15 +19,22 @@ public final class BadgingNotificationEntity {
     public static final String BADGE_ID_FIELDNAME = "I";
 
     /**
+     * The type of badge. For possible values, see
+     * BadgeDAO.
+     */
+    public static final String BADGE_TYPE_FIELDNAME = BadgeDAO.BADGE_TYPE_FIELDNAME;
+
+    /**
      * The name of this authority (domain name).
      */
     public static final String AUTHORITY_FIELDNAME = "A";
 
     /**
      * The display name for the badge. In this case,
-     * it is the domain name of the grantee's email address.
+     * it is the domain name of the grantee's email address
+     * or an abstract name.
      */
-    public static final String DISPLAY_NAME_FIELDNAME = "N";
+    public static final String BADGE_NAME_FIELDNAME = "N";
 
     /**
      * The state of the grant
@@ -57,4 +66,6 @@ public final class BadgingNotificationEntity {
      */
     public static final Integer ERROR_CODE_TRANSACTION_UNKNOWN = 1;
     public static final Integer ERROR_CODE_TRANSACTION_SERVER_ERROR = 2; /** requesting app had an error handling the notification */
+    public static final Integer ERROR_CODE_TRANSACTION_MISSING_BADGES = 3; /** authority granted badges, but no badges were send to requesting app */
+
 }

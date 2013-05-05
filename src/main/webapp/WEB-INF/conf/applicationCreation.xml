@@ -22,6 +22,7 @@
         <property name="badgeCollectionName" value="${badging.store.mongo.badgeCollectionName}" />
         <property name="transactionCollectionName" value="${badging.store.mongo.transactionCollectionName}" />
         <property name="applicationCollectionName" value="${badging.store.mongo.applicationCollectionName}" />
+        <property name="graphCollectionName" value="${badging.store.mongo.graphCollectionName}" />
         <property name="usingReplica" value="${badging.store.mongo.usingReplica}" />
     </bean>
 
