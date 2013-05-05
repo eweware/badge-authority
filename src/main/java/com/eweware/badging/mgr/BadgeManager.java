@@ -449,12 +449,13 @@ public final class BadgeManager {
         // Make email type badge
         final Object result = createBadge(email, BadgeDAO.BADGE_TYPE_EMAIL, expires, appId, txId, relativePath);
         if (result instanceof Response) {
+            final Response response = (Response) result;
+            logger.warning("Tried to create badge for email '" + email + "' but got a bad response status=" + response.getStatus() + " entity '" + response.getEntity() + "'");
             return (Response) result;
         } else if (!(result instanceof DBObject)) {
             // TODO deal with this case
         }
-        final DBObject badge = (DBObject) result;
-        badges.add(badge);
+        badges.add((DBObject) result);
 //        final String badgeId = badge.get(BadgeDAO.ID_FIELDNAME).toString();
 
         // Create abstracted badges, if available
@@ -466,6 +467,8 @@ public final class BadgeManager {
             final String abstraction = (String) obj.get(GraphDAOConstants.ABSTRACTION);
             final Object abstractBadge = createBadge(abstraction, BadgeDAO.BADGE_TYPE_ABSTRACTION, expires, appId, txId, relativePath);
             if (abstractBadge instanceof Response) {
+                final Response response = (Response) result;
+                logger.warning("Tried to create abstract badge named '" + abstraction + "' for email '" + email + "' but got a bad response status=" + response.getStatus() + " entity '" + response.getEntity() + "'");
                 return (Response) result;
             } else if (!(result instanceof DBObject)) {
                 // TODO deal with this case
@@ -505,6 +508,7 @@ public final class BadgeManager {
             map.put(BadgingNotificationEntity.TRANSACTION_ID_FIELDNAME, txId);
             map.put(BadgingNotificationEntity.AUTHORITY_FIELDNAME, getDomain());
             map.put(BadgingNotificationEntity.STATE_FIELDNAME, BadgingNotificationEntity.STATE_GRANTED);
+            logger.info("SENDING BADGES:\n" + map);
             status = postBadgeCreationNotification(url, map);
         } catch (SystemErrorException e) {
             logger.log(Level.SEVERE, "Failed to notify (POST) granted badge id(s) '" + getBadgeIdsAsList(badges) + "' to app '" + appId + "' tx id '" + txId + "' at app url '" + url + "'.", e);
