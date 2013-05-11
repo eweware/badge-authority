@@ -47,12 +47,13 @@ public final class BadgeManager {
     private static final String BADGE_GRANTED_BUT_NOT_ACCEPTED_BY_SPONSOR_APP = "<p>Your badge request has been granted, but due to a technical problem, your sponsor failed to accept the badge.</p><p>You may try to create the badge again.</p>";
     private static final String BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK = "<p>Your badge request has been granted. However, your sponsor has not been notified due to a network problem.</p>";
     private static final String BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE = "<p>Congratulations! Your badge request has been granted.</p>";
+    private static final String BADGE_ALREADY_GRANTED_AND_ACTIVE = "<p>Your badge was granted in the past and is still active.</p>";
 
     private static BadgeManager singleton;
 
     private static final long TEN_MINUTES_IN_MS = (1000l * 60 * 10);
     private static final long FIFTEEN_MINUTES_IN_MS = (1000l * 60 * 15);
-    private static final long HALF_A_YEAR_IN_MILLIS = (1000l * 60 * 60 * 24 * 180);
+    private static final long ONE_YEAR_IN_MILLIS = (1000l * 60 * 60 * 24 * 365);
 
     private static final int BADGE_REFUSED_DUE_TO_TIMEOUT = 1;
     private static final int BADGE_REFUSED_DUE_TO_TOO_MANY_RETRIES = 2;
@@ -284,9 +285,36 @@ public final class BadgeManager {
         }
 
         if (!isEmailAddressValid(emailAddress)) {
+            // TODO retransmit badges to blahgua
             return Response.ok(createInfoRequestForm(txToken, true)).build();
         }
 
+        final List<DBObject> badges = getActiveBadgesForEmailAddress(emailAddress);
+        if (badges.size() > 0) {  // retransmit existing badge(s)
+            // TODO it might be that, say, the Tech Industry badge hasn't expired, but the email badge has. In that
+            // TODO case we should transmit the unexpired badge and proceed to create the expired one. https://eweware.atlassian.net/browse/BA-17
+
+            final String txId = (String) tx.get(TransactionDAO.ID_FIELDNAME);
+            final String email = (String) tx.get(TransactionDAO.USER_EMAIL_ADDRESS_FIELDNAME);
+            final String appId = (String) tx.get(TransactionDAO.SPONSOR_APP_ID_FIELDNAME);
+            final String emailDomain = getEmailDomain(email);
+            // Get/check app
+            final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAO.ID_FIELDNAME, appId));
+            if (app == null) {
+                logger.warning("Ignored attempt to complete badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
+                return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE);
+            }
+            final String relativePath = (String) app.get(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
+            final Response response = transmitBadges(txId, appId, relativePath, badges);
+            return (response == null) ? makeGenericResponse(null, BADGE_ALREADY_GRANTED_AND_ACTIVE) : response;
+        } else {  // sense a validation response message and verification email
+            return makeValidationCodeResponse(txToken, emailAddress, queryTx);
+        }
+
+
+    }
+
+    private Response makeValidationCodeResponse(String txToken, String emailAddress, DBObject queryTx) {
         // Create SHORT(!) validation code. It expires in 10 minutes and only two retries are allowed.
         final byte[] rand = new byte[8];
         try {
@@ -439,15 +467,15 @@ public final class BadgeManager {
             logger.warning("Ignored attempt to complete badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
             return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE);
         }
-        final String endpoint = SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME);
         final String relativePath = (String) app.get(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
+        final String endpoint = SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME);
 
         // Make badges
         final List<DBObject> badges = new ArrayList<DBObject>(3);
-        final Date expires = new Date(System.currentTimeMillis() + HALF_A_YEAR_IN_MILLIS);
+        final Date expires = new Date(System.currentTimeMillis() + ONE_YEAR_IN_MILLIS);
 
         // Make email type badge
-        final Object result = createBadge(email, BadgeDAO.BADGE_TYPE_EMAIL, expires, appId, txId, relativePath);
+        final Object result = createBadge(emailDomain, email, BadgeDAO.BADGE_TYPE_EMAIL, expires, appId, txId, relativePath);
         if (result instanceof Response) {
             final Response response = (Response) result;
             logger.warning("Tried to create badge for email '" + email + "' but got a bad response status=" + response.getStatus() + " entity '" + response.getEntity() + "'");
@@ -465,7 +493,7 @@ public final class BadgeManager {
         final DBCursor cursor = graphCollection.find(graphQuery);
         for (DBObject obj : cursor) {
             final String abstraction = (String) obj.get(GraphDAOConstants.ABSTRACTION);
-            final Object abstractBadge = createBadge(abstraction, BadgeDAO.BADGE_TYPE_ABSTRACTION, expires, appId, txId, relativePath);
+            final Object abstractBadge = createBadge(abstraction, email, BadgeDAO.BADGE_TYPE_ABSTRACTION, expires, appId, txId, relativePath);
             if (abstractBadge instanceof Response) {
                 final Response response = (Response) result;
                 logger.warning("Tried to create abstract badge named '" + abstraction + "' for email '" + email + "' but got a bad response status=" + response.getStatus() + " entity '" + response.getEntity() + "'");
@@ -486,17 +514,27 @@ public final class BadgeManager {
         }
 
         // Transmit badge(s) to sponsor app
+        final Response response = transmitBadges(txId, appId, relativePath, badges);
+        return (response == null) ? makeGenericResponse("granted", BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE) : response;
+    }
+
+    /**
+     * <p> Transmits specified badges to requesting/sponsoring app.</p>
+     * <p>Returns a response whenever there is some error. Returns null if operation succeeds.</p>
+     */
+    private Response transmitBadges(String txId, String appId, String relativePath, List<DBObject> badges) {
+
         final List<Map<String, Object>> entities = new ArrayList<Map<String, Object>>(badges.size());
         for (DBObject newBadge : badges) {
 
             final Map<String, Object> entity = new HashMap<String, Object>();
             entity.put(BadgingNotificationEntity.TRANSACTION_ID_FIELDNAME, txId);
             entity.put(BadgingNotificationEntity.BADGE_ID_FIELDNAME, newBadge.get(BadgeDAO.ID_FIELDNAME).toString());
-            entity.put(BadgingNotificationEntity.BADGE_TYPE_FIELDNAME, (String) newBadge.get(BadgeDAO.BADGE_TYPE_FIELDNAME));
+            entity.put(BadgingNotificationEntity.BADGE_TYPE_FIELDNAME, newBadge.get(BadgeDAO.BADGE_TYPE_FIELDNAME));
             entity.put(BadgingNotificationEntity.AUTHORITY_FIELDNAME, getDomain());
             entity.put(BadgingNotificationEntity.BADGE_NAME_FIELDNAME, newBadge.get(BadgeDAO.BADGE_NAME_FIELDNAME)); // display name
             entity.put(BadgingNotificationEntity.STATE_FIELDNAME, BadgingNotificationEntity.STATE_GRANTED); // status = granted
-            entity.put(BadgingNotificationEntity.EXPIRATION_DATETIME_FIELDNAME, DateUtils.formatDateTime(expires)); // badge expiration date
+            entity.put(BadgingNotificationEntity.EXPIRATION_DATETIME_FIELDNAME, DateUtils.formatDateTime((Date) newBadge.get(BadgeDAO.EXPIRATION_DATETIME_FIELDNAME))); // badge expiration date
 
             entities.add(entity);
         }
@@ -519,7 +557,7 @@ public final class BadgeManager {
             final String code = "notifynotaccepted-" + status;
             return makeGenericResponse(code, BADGE_GRANTED_BUT_NOT_ACCEPTED_BY_SPONSOR_APP);
         }
-        return makeGenericResponse("granted", BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE);
+        return null;
     }
 
     private List<String> getBadgeIdsAsList(List<DBObject> badges) {
@@ -534,19 +572,10 @@ public final class BadgeManager {
     /**
      * Creates the badge by inserting it to the DB. If there's an error,
      * it returns an appropriate Response object, else it returns the badge DBObject.
-     *
-     * @param badgeName
-     * @param badgeType
-     * @param appId
-     * @param txId
-     * @param relativePath
-     * @return
      */
-    private Object createBadge(String badgeName, String badgeType, Date expires, String appId, String txId, String relativePath) {
-        if (badgeType.equals(BadgeDAO.BADGE_TYPE_EMAIL)) {
-            badgeName = getEmailDomain(badgeName);
-        }
+    private Object createBadge(String badgeName, String badgeOwnerEmailAddress, String badgeType, Date expires, String appId, String txId, String relativePath) {
         final DBObject badge = new BasicDBObject(BadgeDAO.BADGE_NAME_FIELDNAME, badgeName);
+        badge.put(BadgeDAO.OWNER_EMAIL_ADDRESS, badgeOwnerEmailAddress);
         badge.put(BadgeDAO.EXPIRATION_DATETIME_FIELDNAME, expires);
         badge.put(BadgeDAO.BADGE_TYPE_FIELDNAME, badgeType);
         badge.put(BadgeDAO.CREATED_DATETIME_FIELDNAME, new Date());
@@ -571,6 +600,26 @@ public final class BadgeManager {
             }
         }
         return badge;
+    }
+
+    /**
+     * <p>Retrieves all active badges owned by user with specified email address.</p>
+     *
+     * @param emailAddress
+     * @return
+     */
+    private List<DBObject> getActiveBadgesForEmailAddress(String emailAddress) {
+        final List<DBObject> badges = new ArrayList<DBObject>(5);
+        final BasicDBObject query = new BasicDBObject(BadgeDAO.OWNER_EMAIL_ADDRESS, emailAddress);
+        final DBCursor badgeCursor = badgeCollection.find(query);
+        final Date now = new Date();
+        for (DBObject badge : badgeCursor) {
+            final Date expires = (Date) badge.get(BadgeDAO.EXPIRATION_DATETIME_FIELDNAME);
+            if (expires == null || expires.before(now)) {
+                badges.add(badge);
+            }
+        }
+        return badges;
     }
 
     private static String getEmailDomain(String email) {
