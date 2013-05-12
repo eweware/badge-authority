@@ -174,16 +174,16 @@ public final class BadgeManager {
     }
 
     /**
-     * <p>Sends map as a POST to the specified endpoint and returns the http status code.</p>
+     * <p>Sends map as a POST to the specified url and returns the http status code.</p>
      *
-     * @param endpoint
+     * @param url
      * @param map
      * @return
      */
-    private int postBadgeCreationNotification(String endpoint, Map<String, Object> map) throws SystemErrorException {
+    private int postBadgeCreationNotification(String url, Map<String, Object> map) throws SystemErrorException {
         HttpPost post = null;
         try {
-            post = new HttpPost(endpoint);
+            post = new HttpPost(url);
             post.setHeader("Content-Type", MediaType.APPLICATION_JSON);
 
             // Set the entity
@@ -198,7 +198,7 @@ public final class BadgeManager {
             return statusCode;
         } catch (Exception e) {
             post.abort();
-            throw new SystemErrorException("failed to post badge creation notification to sponsoring app; endpoint '" + endpoint + "'; data='" + map + "'", e);
+            throw new SystemErrorException("failed to post badge creation notification to sponsoring app; endpoint '" + url + "'; data='" + map + "'", e);
         } finally {
             if (post != null) {
                 post.releaseConnection();
@@ -295,17 +295,20 @@ public final class BadgeManager {
             // TODO case we should transmit the unexpired badge and proceed to create the expired one. https://eweware.atlassian.net/browse/BA-17
 
             final String txId = (String) tx.get(TransactionDAO.ID_FIELDNAME);
-            final String email = (String) tx.get(TransactionDAO.USER_EMAIL_ADDRESS_FIELDNAME);
             final String appId = (String) tx.get(TransactionDAO.SPONSOR_APP_ID_FIELDNAME);
-            final String emailDomain = getEmailDomain(email);
+//            final String email = (String) tx.get(TransactionDAO.USER_EMAIL_ADDRESS_FIELDNAME);
+
+
+//            final String emailDomain = getEmailDomain(email);
             // Get/check app
             final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAO.ID_FIELDNAME, appId));
             if (app == null) {
                 logger.warning("Ignored attempt to complete badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
                 return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE);
             }
+            final String endpoint = SystemManager.getInstance().isDevMode() ? ("http://" + getDevBlahguaDomain()) : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME);
             final String relativePath = (String) app.get(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
-            final Response response = transmitBadges(txId, appId, relativePath, badges);
+            final Response response = transmitBadges(txId, appId, endpoint, relativePath, badges);
             return (response == null) ? makeGenericResponse(null, BADGE_ALREADY_GRANTED_AND_ACTIVE) : response;
         } else {  // sense a validation response message and verification email
             return makeValidationCodeResponse(txToken, emailAddress, queryTx);
@@ -417,7 +420,7 @@ public final class BadgeManager {
             logger.warning("Ignored attempt to refuse badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
             return;
         }
-        final String endpoint = SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME);
+        final String endpoint = SystemManager.getInstance().isDevMode() ? ("http://" + getDevBlahguaDomain()) : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME);
         final String relativePath = (String) app.get(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
 
         // Update transaction
@@ -435,7 +438,7 @@ public final class BadgeManager {
         entity.put(BadgingNotificationEntity.TRANSACTION_ID_FIELDNAME, txId);
         entity.put(BadgingNotificationEntity.AUTHORITY_FIELDNAME, getDomain());
         entity.put(BadgingNotificationEntity.STATE_FIELDNAME, newTxState);
-        final String url = "http://" + endpoint + "/" + relativePath;
+        final String url = endpoint + "/" + relativePath;
         try {
             final int status = postBadgeCreationNotification(url, entity);
             if (status != HttpStatus.SC_ACCEPTED) { // Requestor dropped on the floor
@@ -468,7 +471,7 @@ public final class BadgeManager {
             return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE);
         }
         final String relativePath = (String) app.get(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
-        final String endpoint = SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME);
+        final String endpoint = SystemManager.getInstance().isDevMode() ? ("http://" + getDevBlahguaDomain()) : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME);
 
         // Make badges
         final List<DBObject> badges = new ArrayList<DBObject>(3);
@@ -514,7 +517,7 @@ public final class BadgeManager {
         }
 
         // Transmit badge(s) to sponsor app
-        final Response response = transmitBadges(txId, appId, relativePath, badges);
+        final Response response = transmitBadges(txId, appId, endpoint, relativePath, badges);
         return (response == null) ? makeGenericResponse("granted", BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE) : response;
     }
 
@@ -522,7 +525,7 @@ public final class BadgeManager {
      * <p> Transmits specified badges to requesting/sponsoring app.</p>
      * <p>Returns a response whenever there is some error. Returns null if operation succeeds.</p>
      */
-    private Response transmitBadges(String txId, String appId, String relativePath, List<DBObject> badges) {
+    private Response transmitBadges(String txId, String appId, String endpoint, String relativePath, List<DBObject> badges) {
 
         final List<Map<String, Object>> entities = new ArrayList<Map<String, Object>>(badges.size());
         for (DBObject newBadge : badges) {
@@ -538,7 +541,7 @@ public final class BadgeManager {
 
             entities.add(entity);
         }
-        final String url = "http://" + endpoint + "/" + relativePath;
+        final String url = endpoint + "/" + relativePath;
         int status = 0;
         try {
             final Map<String, Object> map = new HashMap<String, Object>(1);
@@ -586,7 +589,7 @@ public final class BadgeManager {
             final Map<String, Object> entity = new HashMap<String, Object>();
             entity.put(BadgingNotificationEntity.TRANSACTION_ID_FIELDNAME, txId);
             entity.put(BadgingNotificationEntity.STATE_FIELDNAME, BadgingNotificationEntity.STATE_SERVER_ERROR);
-            final String url = "http://" + endpoint + "/" + relativePath;
+            final String url = endpoint + "/" + relativePath;
             try {
                 final int status = postBadgeCreationNotification(url, entity);
                 if (status != HttpStatus.SC_ACCEPTED) {
