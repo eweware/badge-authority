@@ -1,6 +1,6 @@
 package main.java.com.eweware.badging.payload;
 
-import main.java.com.eweware.badging.dao.BadgeDAO;
+import main.java.com.eweware.badging.dao.BadgeDAOConstants;
 
 /**
  * @author rk@post.harvard.edu
@@ -20,9 +20,9 @@ public final class BadgingNotificationEntity {
 
     /**
      * The type of badge. For possible values, see
-     * BadgeDAO.
+     * BadgeDAOConstants.
      */
-    public static final String BADGE_TYPE_FIELDNAME = BadgeDAO.BADGE_TYPE_FIELDNAME;
+    public static final String BADGE_TYPE_ID_FIELDNAME = BadgeDAOConstants.BADGE_TYPE_ID_FIELDNAME;
 
     /**
      * The name of this authority (domain name).

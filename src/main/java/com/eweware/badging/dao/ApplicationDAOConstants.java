@@ -4,7 +4,7 @@ package main.java.com.eweware.badging.dao;
  * @author rk@post.harvard.edu
  *         Date: 3/24/13 Time: 5:25 PM
  */
-public class ApplicationDAO {
+public class ApplicationDAOConstants {
 
     public static final String ID_FIELDNAME = "_id";
 

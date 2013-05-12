@@ -4,7 +4,7 @@ package main.java.com.eweware.badging.dao;
  * @author rk@post.harvard.edu
  *         Date: 3/24/13 Time: 4:33 PM
  */
-public class BadgeDAO {
+public class BadgeDAOConstants {
 
     /**
      * A unique badge id for this authority. This id
@@ -45,7 +45,7 @@ public class BadgeDAO {
      * on email domain) and "a" (abstracted badge based on the
      * email domain).</p>
      */
-    public static final String BADGE_TYPE_FIELDNAME = "Y";
+    public static final String BADGE_TYPE_ID_FIELDNAME = "Y";
 
     /**
      * Badge type values

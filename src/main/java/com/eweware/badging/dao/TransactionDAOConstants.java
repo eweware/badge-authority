@@ -4,7 +4,7 @@ package main.java.com.eweware.badging.dao;
  * @author rk@post.harvard.edu
  *         Date: 3/24/13 Time: 4:20 PM
  */
-public class TransactionDAO {
+public class TransactionDAOConstants {
 
     /**
      * Unique id for the transaction

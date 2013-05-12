@@ -2,10 +2,10 @@ package main.java.com.eweware.badging.mgr;
 
 import com.mongodb.*;
 import main.java.com.eweware.badging.base.SystemErrorException;
-import main.java.com.eweware.badging.dao.ApplicationDAO;
-import main.java.com.eweware.badging.dao.BadgeDAO;
+import main.java.com.eweware.badging.dao.ApplicationDAOConstants;
+import main.java.com.eweware.badging.dao.BadgeDAOConstants;
 import main.java.com.eweware.badging.dao.GraphDAOConstants;
-import main.java.com.eweware.badging.dao.TransactionDAO;
+import main.java.com.eweware.badging.dao.TransactionDAOConstants;
 import main.java.com.eweware.badging.payload.BadgingNotificationEntity;
 import main.java.com.eweware.badging.util.DateUtils;
 import org.apache.commons.codec.binary.Base64;
@@ -232,11 +232,11 @@ public final class BadgeManager {
         }
         final String txToken = appName + Base64.encodeBase64URLSafeString(rand);
 
-        final DBObject tr = new BasicDBObject(TransactionDAO.ID_FIELDNAME, txToken);
-        tr.put(TransactionDAO.STATE_FIELDNAME, TransactionDAO.STATE_PENDING_CREDENTIALS);    // state := pending getting email address
-        tr.put(TransactionDAO.SPONSOR_APP_ID_FIELDNAME, appName);  // app id := id of sponsor app
-        tr.put(TransactionDAO.TRANSACTION_STARTED_DATETIME_FIELDNAME, new Date());
-        tr.put(TransactionDAO.RETRY_COUNT_FIELDNAME, 0);
+        final DBObject tr = new BasicDBObject(TransactionDAOConstants.ID_FIELDNAME, txToken);
+        tr.put(TransactionDAOConstants.STATE_FIELDNAME, TransactionDAOConstants.STATE_PENDING_CREDENTIALS);    // state := pending getting email address
+        tr.put(TransactionDAOConstants.SPONSOR_APP_ID_FIELDNAME, appName);  // app id := id of sponsor app
+        tr.put(TransactionDAOConstants.TRANSACTION_STARTED_DATETIME_FIELDNAME, new Date());
+        tr.put(TransactionDAOConstants.RETRY_COUNT_FIELDNAME, 0);
         final WriteResult result = transactionCollection.insert(tr);
         if (result.getError() != null) {
             logger.severe("Failed to initiate tx. DB error: " + result.getError());
@@ -265,16 +265,16 @@ public final class BadgeManager {
         if (txToken == null) {
             return makeGenericResponse("crednotok", null);
         }
-        final DBObject queryTx = new BasicDBObject(TransactionDAO.ID_FIELDNAME, txToken);
+        final DBObject queryTx = new BasicDBObject(TransactionDAOConstants.ID_FIELDNAME, txToken);
         final DBObject tx = transactionCollection.findOne(queryTx);
         if (tx == null) {
             return makeGenericResponse("crednotokreg", null);
         }
-        final Object state = tx.get(TransactionDAO.STATE_FIELDNAME);
-        if (state == null || !state.equals(TransactionDAO.STATE_PENDING_CREDENTIALS)) {
+        final Object state = tx.get(TransactionDAOConstants.STATE_FIELDNAME);
+        if (state == null || !state.equals(TransactionDAOConstants.STATE_PENDING_CREDENTIALS)) {
             return makeGenericResponse("credstateconflict", null);
         }
-        final Object created = tx.get(TransactionDAO.TRANSACTION_STARTED_DATETIME_FIELDNAME);
+        final Object created = tx.get(TransactionDAOConstants.TRANSACTION_STARTED_DATETIME_FIELDNAME);
         if (created != null) { // check 15 minute timeout
             final Date c = (Date) created;
             if ((c.getTime() + FIFTEEN_MINUTES_IN_MS) < System.currentTimeMillis()) {
@@ -294,20 +294,20 @@ public final class BadgeManager {
             // TODO it might be that, say, the Tech Industry badge hasn't expired, but the email badge has. In that
             // TODO case we should transmit the unexpired badge and proceed to create the expired one. https://eweware.atlassian.net/browse/BA-17
 
-            final String txId = (String) tx.get(TransactionDAO.ID_FIELDNAME);
-            final String appId = (String) tx.get(TransactionDAO.SPONSOR_APP_ID_FIELDNAME);
+            final String txId = (String) tx.get(TransactionDAOConstants.ID_FIELDNAME);
+            final String appId = (String) tx.get(TransactionDAOConstants.SPONSOR_APP_ID_FIELDNAME);
 //            final String email = (String) tx.get(TransactionDAO.USER_EMAIL_ADDRESS_FIELDNAME);
 
 
 //            final String emailDomain = getEmailDomain(email);
             // Get/check app
-            final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAO.ID_FIELDNAME, appId));
+            final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAOConstants.ID_FIELDNAME, appId));
             if (app == null) {
                 logger.warning("Ignored attempt to complete badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
                 return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE);
             }
-            final String endpoint = "http://" + (SystemManager.getInstance().isDevMode() ? (getDevBlahguaDomain()) : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME));
-            final String relativePath = (String) app.get(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
+            final String endpoint = "http://" + (SystemManager.getInstance().isDevMode() ? (getDevBlahguaDomain()) : (String) app.get(ApplicationDAOConstants.SPONSOR_ENDPOINT_FIELDNAME));
+            final String relativePath = (String) app.get(ApplicationDAOConstants.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
             final Response response = transmitBadges(txId, appId, endpoint + "/" + relativePath, badges);
             return (response == null) ? makeGenericResponse(null, BADGE_ALREADY_GRANTED_AND_ACTIVE) : response;
         } else {  // sense a validation response message and verification email
@@ -329,11 +329,11 @@ public final class BadgeManager {
         final String verificationCode = Base64.encodeBase64URLSafeString(rand);
 
         // Update transaction state
-        final DBObject update = new BasicDBObject(TransactionDAO.STATE_FIELDNAME, TransactionDAO.STATE_PENDING_VERIFICATION_CODE);
+        final DBObject update = new BasicDBObject(TransactionDAOConstants.STATE_FIELDNAME, TransactionDAOConstants.STATE_PENDING_VERIFICATION_CODE);
         final DBObject setter = new BasicDBObject("$set", update);
-        update.put(TransactionDAO.VERIFICATION_CODE_FIELDNAME, verificationCode);
-        update.put(TransactionDAO.TRANSACTION_STARTED_DATETIME_FIELDNAME, new Date());
-        update.put(TransactionDAO.USER_EMAIL_ADDRESS_FIELDNAME, emailAddress);
+        update.put(TransactionDAOConstants.VERIFICATION_CODE_FIELDNAME, verificationCode);
+        update.put(TransactionDAOConstants.TRANSACTION_STARTED_DATETIME_FIELDNAME, new Date());
+        update.put(TransactionDAOConstants.USER_EMAIL_ADDRESS_FIELDNAME, emailAddress);
         final WriteResult wr = transactionCollection.update(queryTx, setter);
         if (wr.getError() != null) {
             logger.severe("Failed to update transaction token '" + txToken + "' code 'txupdb'. DB error: " + wr.getError());
@@ -365,28 +365,28 @@ public final class BadgeManager {
         if (txToken == null) {
             return makeGenericResponse("vernotok", null);
         }
-        final DBObject txQuery = new BasicDBObject(TransactionDAO.ID_FIELDNAME, txToken);
+        final DBObject txQuery = new BasicDBObject(TransactionDAOConstants.ID_FIELDNAME, txToken);
         final DBObject tx = transactionCollection.findOne(txQuery);
         if (tx == null) {
             return makeGenericResponse("vernotokreg", null);
         }
 
-        final Object vcode = tx.get(TransactionDAO.VERIFICATION_CODE_FIELDNAME);
+        final Object vcode = tx.get(TransactionDAOConstants.VERIFICATION_CODE_FIELDNAME);
         if (verificationCode.equals(vcode.toString())) {
             return createAndTransmitBadge(tx);
         }
 
-        final Date created = (Date) tx.get(TransactionDAO.TRANSACTION_STARTED_DATETIME_FIELDNAME);
-        final Integer retries = (Integer) tx.get(TransactionDAO.RETRY_COUNT_FIELDNAME);
+        final Date created = (Date) tx.get(TransactionDAOConstants.TRANSACTION_STARTED_DATETIME_FIELDNAME);
+        final Integer retries = (Integer) tx.get(TransactionDAOConstants.RETRY_COUNT_FIELDNAME);
         if (retries != null && retries > 2) {
-            transmitBadgeRefusal(tx, TransactionDAO.REFUSAL_TOO_MANY_RETRIES);
+            transmitBadgeRefusal(tx, TransactionDAOConstants.REFUSAL_TOO_MANY_RETRIES);
             return makeGenericResponse("vertoomanyattempts", "<p>Sorry, too many attempts to enter verification code. Try again later.</p>");
         } else if ((created.getTime() + TEN_MINUTES_IN_MS) < System.currentTimeMillis()) {
-            transmitBadgeRefusal(tx, TransactionDAO.REFUSAL_USER_TIMEOUT);
+            transmitBadgeRefusal(tx, TransactionDAOConstants.REFUSAL_USER_TIMEOUT);
             return makeGenericResponse("vertimeout", VERIFICATION_TIMEOUT_MESSAGE);
         }
 
-        transactionCollection.update(txQuery, new BasicDBObject("$inc", new BasicDBObject(TransactionDAO.RETRY_COUNT_FIELDNAME, 1)));
+        transactionCollection.update(txQuery, new BasicDBObject("$inc", new BasicDBObject(TransactionDAOConstants.RETRY_COUNT_FIELDNAME, 1)));
 
         return Response.ok(createVerificationCodeRequestForm(txToken, true)).build();
     }
@@ -411,23 +411,23 @@ public final class BadgeManager {
      */
     private void transmitBadgeRefusal(DBObject tx, String newTxState) {
 
-        final String txId = (String) tx.get(TransactionDAO.ID_FIELDNAME);
-        final String appId = (String) tx.get(TransactionDAO.SPONSOR_APP_ID_FIELDNAME);
+        final String txId = (String) tx.get(TransactionDAOConstants.ID_FIELDNAME);
+        final String appId = (String) tx.get(TransactionDAOConstants.SPONSOR_APP_ID_FIELDNAME);
 
         // Get/check app
-        final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAO.ID_FIELDNAME, appId));
+        final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAOConstants.ID_FIELDNAME, appId));
         if (app == null) {
             logger.warning("Ignored attempt to refuse badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
             return;
         }
-        final String endpoint = "http://" + (SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME));
-        final String relativePath = (String) app.get(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
+        final String endpoint = "http://" + (SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAOConstants.SPONSOR_ENDPOINT_FIELDNAME));
+        final String relativePath = (String) app.get(ApplicationDAOConstants.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
         final String url = endpoint + "/" + relativePath;
 
         // Update transaction
-        final DBObject txQuery = new BasicDBObject(TransactionDAO.ID_FIELDNAME, txId);
-        final BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(TransactionDAO.STATE_FIELDNAME, newTxState));
-        update.put("$inc", new BasicDBObject(TransactionDAO.RETRY_COUNT_FIELDNAME, 1));
+        final DBObject txQuery = new BasicDBObject(TransactionDAOConstants.ID_FIELDNAME, txId);
+        final BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(TransactionDAOConstants.STATE_FIELDNAME, newTxState));
+        update.put("$inc", new BasicDBObject(TransactionDAOConstants.RETRY_COUNT_FIELDNAME, 1));
         final WriteResult result = MongoStoreManager.getInstance().getTransactionCollection().update(txQuery, update);
         if (result.getError() != null) {
             logger.severe("Error updating tx status (tx id '" + txId + "') in DB; accepting tx anyway. DB error: " + result.getError());
@@ -459,26 +459,26 @@ public final class BadgeManager {
      */
     private Response createAndTransmitBadge(DBObject tx) {
 
-        final String txId = (String) tx.get(TransactionDAO.ID_FIELDNAME);
-        final String email = (String) tx.get(TransactionDAO.USER_EMAIL_ADDRESS_FIELDNAME);
-        final String appId = (String) tx.get(TransactionDAO.SPONSOR_APP_ID_FIELDNAME);
+        final String txId = (String) tx.get(TransactionDAOConstants.ID_FIELDNAME);
+        final String email = (String) tx.get(TransactionDAOConstants.USER_EMAIL_ADDRESS_FIELDNAME);
+        final String appId = (String) tx.get(TransactionDAOConstants.SPONSOR_APP_ID_FIELDNAME);
         final String emailDomain = getEmailDomain(email);
 
         // Get/check app
-        final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAO.ID_FIELDNAME, appId));
+        final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAOConstants.ID_FIELDNAME, appId));
         if (app == null) {
             logger.warning("Ignored attempt to complete badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
             return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE);
         }
-        final String endpoint = "http://" + (SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME));
-        final String relativePath = (String) app.get(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
+        final String endpoint = "http://" + (SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAOConstants.SPONSOR_ENDPOINT_FIELDNAME));
+        final String relativePath = (String) app.get(ApplicationDAOConstants.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
         final String url = endpoint + "/" + relativePath;
         // Make badges
         final List<DBObject> badges = new ArrayList<DBObject>(3);
         final Date expires = new Date(System.currentTimeMillis() + ONE_YEAR_IN_MILLIS);
 
         // Make email type badge
-        final Object result = createBadge(emailDomain, email, BadgeDAO.BADGE_TYPE_EMAIL, expires, appId, txId, relativePath);
+        final Object result = createBadge(emailDomain, email, BadgeDAOConstants.BADGE_TYPE_EMAIL, expires, appId, txId, relativePath);
         if (result instanceof Response) {
             final Response response = (Response) result;
             logger.warning("Tried to create badge for email '" + email + "' but got a bad response status=" + response.getStatus() + " entity '" + response.getEntity() + "'");
@@ -487,16 +487,14 @@ public final class BadgeManager {
             // TODO deal with this case
         }
         badges.add((DBObject) result);
-//        final String badgeId = badge.get(BadgeDAO.ID_FIELDNAME).toString();
 
-        // Create abstracted badges, if available
-
+        // Create abstracted badges, if any
         final DBCollection graphCollection = MongoStoreManager.getInstance().getGraphCollection();
         final BasicDBObject graphQuery = new BasicDBObject(GraphDAOConstants.DOMAIN, emailDomain);
         final DBCursor cursor = graphCollection.find(graphQuery);
         for (DBObject obj : cursor) {
             final String abstraction = (String) obj.get(GraphDAOConstants.ABSTRACTION);
-            final Object abstractBadge = createBadge(abstraction, email, BadgeDAO.BADGE_TYPE_ABSTRACTION, expires, appId, txId, relativePath);
+            final Object abstractBadge = createBadge(abstraction, email, BadgeDAOConstants.BADGE_TYPE_ABSTRACTION, expires, appId, txId, relativePath);
             if (abstractBadge instanceof Response) {
                 final Response response = (Response) result;
                 logger.warning("Tried to create abstract badge named '" + abstraction + "' for email '" + email + "' but got a bad response status=" + response.getStatus() + " entity '" + response.getEntity() + "'");
@@ -509,8 +507,8 @@ public final class BadgeManager {
 
 
         // Update transaction
-        final DBObject txQuery = new BasicDBObject(TransactionDAO.ID_FIELDNAME, txId);
-        final WriteResult wr = MongoStoreManager.getInstance().getTransactionCollection().update(txQuery, new BasicDBObject("$set", new BasicDBObject(TransactionDAO.STATE_FIELDNAME, TransactionDAO.STATE_AWARDED_BADGE)));
+        final DBObject txQuery = new BasicDBObject(TransactionDAOConstants.ID_FIELDNAME, txId);
+        final WriteResult wr = MongoStoreManager.getInstance().getTransactionCollection().update(txQuery, new BasicDBObject("$set", new BasicDBObject(TransactionDAOConstants.STATE_FIELDNAME, TransactionDAOConstants.STATE_AWARDED_BADGE)));
         if (wr.getError() != null) {
             logger.severe("Error updating tx id '" + txId + "' status for sponsor app '" + appId + "'. Ignored. DB error: " + wr.getError());
             // fall through anyway
@@ -532,12 +530,12 @@ public final class BadgeManager {
 
             final Map<String, Object> entity = new HashMap<String, Object>();
             entity.put(BadgingNotificationEntity.TRANSACTION_ID_FIELDNAME, txId);
-            entity.put(BadgingNotificationEntity.BADGE_ID_FIELDNAME, newBadge.get(BadgeDAO.ID_FIELDNAME).toString());
-            entity.put(BadgingNotificationEntity.BADGE_TYPE_FIELDNAME, newBadge.get(BadgeDAO.BADGE_TYPE_FIELDNAME));
+            entity.put(BadgingNotificationEntity.BADGE_ID_FIELDNAME, newBadge.get(BadgeDAOConstants.ID_FIELDNAME).toString());
+            entity.put(BadgingNotificationEntity.BADGE_TYPE_ID_FIELDNAME, newBadge.get(BadgeDAOConstants.BADGE_TYPE_ID_FIELDNAME));
             entity.put(BadgingNotificationEntity.AUTHORITY_FIELDNAME, getDomain());
-            entity.put(BadgingNotificationEntity.BADGE_NAME_FIELDNAME, newBadge.get(BadgeDAO.BADGE_NAME_FIELDNAME)); // display name
+            entity.put(BadgingNotificationEntity.BADGE_NAME_FIELDNAME, newBadge.get(BadgeDAOConstants.BADGE_NAME_FIELDNAME)); // display name
             entity.put(BadgingNotificationEntity.STATE_FIELDNAME, BadgingNotificationEntity.STATE_GRANTED); // status = granted
-            entity.put(BadgingNotificationEntity.EXPIRATION_DATETIME_FIELDNAME, DateUtils.formatDateTime((Date) newBadge.get(BadgeDAO.EXPIRATION_DATETIME_FIELDNAME))); // badge expiration date
+            entity.put(BadgingNotificationEntity.EXPIRATION_DATETIME_FIELDNAME, DateUtils.formatDateTime((Date) newBadge.get(BadgeDAOConstants.EXPIRATION_DATETIME_FIELDNAME))); // badge expiration date
 
             entities.add(entity);
         }
@@ -565,7 +563,7 @@ public final class BadgeManager {
     private List<String> getBadgeIdsAsList(List<DBObject> badges) {
         final List<String> ids = new ArrayList<String>(badges.size());
         for (DBObject badge : badges) {
-            ids.add(badge.get(BadgeDAO.ID_FIELDNAME).toString());
+            ids.add(badge.get(BadgeDAOConstants.ID_FIELDNAME).toString());
         }
         return ids;
     }
@@ -576,12 +574,12 @@ public final class BadgeManager {
      * it returns an appropriate Response object, else it returns the badge DBObject.
      */
     private Object createBadge(String badgeName, String badgeOwnerEmailAddress, String badgeType, Date expires, String appId, String txId, String relativePath) {
-        final DBObject badge = new BasicDBObject(BadgeDAO.BADGE_NAME_FIELDNAME, badgeName);
-        badge.put(BadgeDAO.OWNER_EMAIL_ADDRESS, badgeOwnerEmailAddress);
-        badge.put(BadgeDAO.EXPIRATION_DATETIME_FIELDNAME, expires);
-        badge.put(BadgeDAO.BADGE_TYPE_FIELDNAME, badgeType);
-        badge.put(BadgeDAO.CREATED_DATETIME_FIELDNAME, new Date());
-        badge.put(BadgeDAO.REQUESTING_APP_ID, appId);
+        final DBObject badge = new BasicDBObject(BadgeDAOConstants.BADGE_NAME_FIELDNAME, badgeName);
+        badge.put(BadgeDAOConstants.OWNER_EMAIL_ADDRESS, badgeOwnerEmailAddress);
+        badge.put(BadgeDAOConstants.EXPIRATION_DATETIME_FIELDNAME, expires);
+        badge.put(BadgeDAOConstants.BADGE_TYPE_ID_FIELDNAME, badgeType);
+        badge.put(BadgeDAOConstants.CREATED_DATETIME_FIELDNAME, new Date());
+        badge.put(BadgeDAOConstants.REQUESTING_APP_ID, appId);
         final WriteResult insert = badgeCollection.insert(badge);
         if (insert.getError() != null) {
             logger.severe("DB error inserting granted badge for user '" + badgeName + "' tx id '" + txId + "' appId '" + appId + "'. DB error: " + insert.getError());
@@ -612,11 +610,11 @@ public final class BadgeManager {
      */
     private List<DBObject> getActiveBadgesForEmailAddress(String emailAddress) {
         final List<DBObject> badges = new ArrayList<DBObject>(5);
-        final BasicDBObject query = new BasicDBObject(BadgeDAO.OWNER_EMAIL_ADDRESS, emailAddress);
+        final BasicDBObject query = new BasicDBObject(BadgeDAOConstants.OWNER_EMAIL_ADDRESS, emailAddress);
         final DBCursor badgeCursor = badgeCollection.find(query);
         final Date now = new Date();
         for (DBObject badge : badgeCursor) {
-            final Date expires = (Date) badge.get(BadgeDAO.EXPIRATION_DATETIME_FIELDNAME);
+            final Date expires = (Date) badge.get(BadgeDAOConstants.EXPIRATION_DATETIME_FIELDNAME);
             if (expires == null || expires.before(now)) {
                 badges.add(badge);
             }
@@ -696,10 +694,10 @@ public final class BadgeManager {
     }
 
     private boolean checkApplication(String appName, String appPassword) {
-        final DBObject query = new BasicDBObject(ApplicationDAO.ID_FIELDNAME, appName);
+        final DBObject query = new BasicDBObject(ApplicationDAOConstants.ID_FIELDNAME, appName);
         final DBObject app = appCollection.findOne(query);
         if (app != null) {
-            final String password = (String) app.get(ApplicationDAO.PASSWORD_FIELDNAME);
+            final String password = (String) app.get(ApplicationDAOConstants.PASSWORD_FIELDNAME);
             if (password != null && password.equals(appPassword)) {
                 return true;
             }
