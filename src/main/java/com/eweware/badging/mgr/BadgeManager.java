@@ -470,7 +470,7 @@ public final class BadgeManager {
             logger.warning("Ignored attempt to complete badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
             return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE);
         }
-        final String endpoint = SystemManager.getInstance().isDevMode() ? ("http://" + getDevBlahguaDomain()) : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME);
+        final String endpoint = "http://" + (SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME));
         final String relativePath = (String) app.get(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
         final String url = endpoint + "/" + relativePath;
         // Make badges
