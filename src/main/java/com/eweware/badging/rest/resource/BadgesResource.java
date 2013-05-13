@@ -50,7 +50,6 @@ public class BadgesResource {
             final Response response = BadgeManager.getInstance().initBadgingTransaction(appName, appPassword);
             return response;
         } catch (Exception e) {
-            System.out.println("Resource ex: "+e.getMessage());
             logger.log(Level.SEVERE, e.getMessage(), e);
             return Response.serverError().build();
         }

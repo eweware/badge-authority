@@ -174,39 +174,6 @@ public final class BadgeManager {
     }
 
     /**
-     * <p>Sends map as a POST to the specified url and returns the http status code.</p>
-     *
-     * @param url
-     * @param map
-     * @return
-     */
-    private int postBadgeCreationNotification(String url, Map<String, Object> map) throws SystemErrorException {
-        HttpPost post = null;
-        try {
-            post = new HttpPost(url);
-            post.setHeader("Content-Type", MediaType.APPLICATION_JSON);
-
-            // Set the entity
-            final String jsonString = new ObjectMapper().writeValueAsString(map);
-            final StringEntity stringEntity = new StringEntity(jsonString, "UTF-8");
-            post.setEntity(stringEntity);
-
-            // Execute remote method and get response
-            final HttpResponse response = getHttpClient().execute(post);
-            int statusCode = response.getStatusLine().getStatusCode();
-            // TODO authority should process the error code and return error info or log it here
-            return statusCode;
-        } catch (Exception e) {
-            post.abort();
-            throw new SystemErrorException("failed to post badge creation notification to sponsoring app; endpoint '" + url + "'; data='" + map + "'", e);
-        } finally {
-            if (post != null) {
-                post.releaseConnection();
-            }
-        }
-    }
-
-    /**
      * <p>First phase of badge creation transaction.</p>
      * <p>Initiates a badge creation transaction with an end user browser/app via
      * the badge-sponsor app.</p>
@@ -703,6 +670,39 @@ public final class BadgeManager {
             }
         }
         return false;
+    }
+
+    /**
+     * <p>Sends map as a POST to the specified url and returns the http status code.</p>
+     *
+     * @param url
+     * @param map
+     * @return
+     */
+    private int postBadgeCreationNotification(String url, Map<String, Object> map) throws SystemErrorException {
+        HttpPost post = null;
+        try {
+            post = new HttpPost(url);
+            post.setHeader("Content-Type", MediaType.APPLICATION_JSON);
+
+            // Set the entity
+            final String jsonString = new ObjectMapper().writeValueAsString(map);
+            final StringEntity stringEntity = new StringEntity(jsonString, "UTF-8");
+            post.setEntity(stringEntity);
+
+            // Execute remote method and get response
+            final HttpResponse response = getHttpClient().execute(post);
+            int statusCode = response.getStatusLine().getStatusCode();
+            // TODO authority should process the error code and return error info or log it here
+            return statusCode;
+        } catch (Exception e) {
+            post.abort();
+            throw new SystemErrorException("failed to post badge creation notification to sponsoring app; endpoint '" + url + "'; data='" + map + "'", e);
+        } finally {
+            if (post != null) {
+                post.releaseConnection();
+            }
+        }
     }
 
     private void startHttpClient() {

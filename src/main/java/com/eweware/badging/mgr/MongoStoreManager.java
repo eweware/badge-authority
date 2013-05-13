@@ -77,7 +77,7 @@ public final class MongoStoreManager extends StoreManager {
             }
             if (getUsingReplica()) {
                 builder
-                        .readPreference(ReadPreference.primaryPreferred()) // tries to read from primary
+                        .readPreference(ReadPreference.secondaryPreferred()) // tries to read from secondaries
                         .writeConcern(WriteConcern.MAJORITY);              // Writes to secondaries before returning
                 logger.info("*** Connecting to hostname(s) in replica set: " + hostnames + " port=" + port + " ***");
             } else {
