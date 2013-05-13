@@ -117,34 +117,11 @@ public final class BadgeManager {
                 throw new WebServiceException("Start preconditions failed");
             }
             startHttpClient();
-//            maybeRegisterBlahguaApp();
             logger.info("*** BadgeManager Started (rest endpoint @" + restEndpoint + ") ***");
         } catch (Exception e) {
             throw new WebServiceException("Failed to start badge manager", e);
         }
     }
-
-//    /**
-//     * Simple kludge to register blahgua.com
-//     */
-//    private void maybeRegisterBlahguaApp() {
-//        // The app domain is its unique id.
-//        final DBObject blahgua = new BasicDBObject(ApplicationDAO.ID_FIELDNAME, "blahgua.com");
-//        if (appCollection.getCount(blahgua) != 0) {
-//            return;
-//        }
-//        blahgua.put(ApplicationDAO.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME, "v2/badges/add");
-//        blahgua.put(ApplicationDAO.PASSWORD_FIELDNAME, "sheep"); // TODO kludge. Replace with digest and salt.
-//        blahgua.put(ApplicationDAO.SPONSOR_ENDPOINT_FIELDNAME, "beta.blahgua.com");
-//        blahgua.put(ApplicationDAO.STATUS_FIELDNAME, ApplicationDAO.STATUS_ACTIVE); // status := active
-//        blahgua.put(ApplicationDAO.CREATED_FIELDNAME, new Date());
-//        final WriteResult insert = appCollection.insert(blahgua);
-//        final String error = insert.getError();
-//        if (error != null) {
-//            throw new WebServiceException("Failed to register blahgua app due to a DB error: " + error);
-//        }
-//        logger.info("Registered blahgua.com as an app");
-//    }
 
     public void shutdown() {
         if (connectionPoolMgr != null) {
