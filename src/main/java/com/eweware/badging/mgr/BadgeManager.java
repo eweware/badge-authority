@@ -52,6 +52,7 @@ public final class BadgeManager {
     private static final String BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK = "<p>Your badge request has been granted. However, your sponsor has not been notified due to a network problem.</p>";
     private static final String BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE = "<p>Congratulations! Your badge request has been granted.</p>";
     private static final String BADGE_ALREADY_GRANTED_AND_ACTIVE = "<p>Your badge was granted in the past and is still active.</p>";
+    private static final String HTTPS_PROTOCOL = "https://";
 
     private static BadgeManager singleton;
 
@@ -254,7 +255,7 @@ public final class BadgeManager {
                 logger.warning("Ignored attempt to complete badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
                 return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE);
             }
-            final String endpoint = "http://" + (SystemManager.getInstance().isDevMode() ? (getDevBlahguaDomain()) : (String) app.get(ApplicationDAOConstants.SPONSOR_ENDPOINT_FIELDNAME));
+            final String endpoint = HTTPS_PROTOCOL + (SystemManager.getInstance().isDevMode() ? (getDevBlahguaDomain()) : (String) app.get(ApplicationDAOConstants.SPONSOR_ENDPOINT_FIELDNAME));
             final String relativePath = (String) app.get(ApplicationDAOConstants.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
             final Response response = transmitBadges(txId, appId, endpoint + "/" + relativePath, badges);
             return (response == null) ? makeGenericResponse(null, BADGE_ALREADY_GRANTED_AND_ACTIVE) : response;
@@ -368,7 +369,7 @@ public final class BadgeManager {
             logger.warning("Ignored attempt to refuse badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
             return;
         }
-        final String endpoint = "http://" + (SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAOConstants.SPONSOR_ENDPOINT_FIELDNAME));
+        final String endpoint = HTTPS_PROTOCOL + (SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAOConstants.SPONSOR_ENDPOINT_FIELDNAME));
         final String relativePath = (String) app.get(ApplicationDAOConstants.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
         final String url = endpoint + "/" + relativePath;
 
@@ -390,7 +391,7 @@ public final class BadgeManager {
         try {
             final int status = postBadgeCreationNotification(url, entity);
             if (status != HttpStatus.SC_ACCEPTED) { // Requestor dropped on the floor
-                logger.warning("Sponsor app did not accept badge refusal. Returned http status=" + status);
+                logger.warning("Sponsor app did not accept badge refusal. Returned https status=" + status);
                 // TODO roll back?
             }
         } catch (SystemErrorException e) {
@@ -418,7 +419,7 @@ public final class BadgeManager {
             logger.warning("Ignored attempt to complete badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
             return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE);
         }
-        final String endpoint = "http://" + (SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAOConstants.SPONSOR_ENDPOINT_FIELDNAME));
+        final String endpoint = HTTPS_PROTOCOL + (SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAOConstants.SPONSOR_ENDPOINT_FIELDNAME));
         final String relativePath = (String) app.get(ApplicationDAOConstants.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
         final String url = endpoint + "/" + relativePath;
         // Make badges
@@ -501,7 +502,7 @@ public final class BadgeManager {
             return makeGenericResponse("notifyerror", BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK);
         }
         if (status != HttpStatus.SC_ACCEPTED) { // Requestor dropped on the floor
-            logger.severe("Sponsor app '" + appId + "' did not accept badge id(s) '" + getBadgeIdsAsList(badges) + "' for tx id '" + txId + "'. Returned http status=" + status);
+            logger.severe("Sponsor app '" + appId + "' did not accept badge id(s) '" + getBadgeIdsAsList(badges) + "' for tx id '" + txId + "'. Returned https status=" + status);
             final String code = "notifynotaccepted-" + status;
             return makeGenericResponse(code, BADGE_GRANTED_BUT_NOT_ACCEPTED_BY_SPONSOR_APP);
         }
