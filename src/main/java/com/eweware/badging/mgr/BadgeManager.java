@@ -17,6 +17,8 @@ import org.apache.http.conn.params.ConnManagerPNames;
 import org.apache.http.conn.scheme.PlainSocketFactory;
 import org.apache.http.conn.scheme.Scheme;
 import org.apache.http.conn.scheme.SchemeRegistry;
+import org.apache.http.conn.ssl.SSLSocketFactory;
+import org.apache.http.conn.ssl.X509HostnameVerifier;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.impl.conn.PoolingClientConnectionManager;
@@ -25,6 +27,8 @@ import org.apache.http.params.HttpParams;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import javax.mail.MessagingException;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.xml.ws.WebServiceException;
@@ -684,13 +688,19 @@ public final class BadgeManager {
 
     private void startHttpClient() {
         final SchemeRegistry schemeRegistry = new SchemeRegistry();
-        schemeRegistry.register(new Scheme("http", 80, PlainSocketFactory.getSocketFactory()));
         if (SystemManager.getInstance().isDevMode()) { // Debug blahguarest port 8080
             schemeRegistry.register(new Scheme("http", getDevBlahguarestPort(), PlainSocketFactory.getSocketFactory()));
+        } else {
+            //schemeRegistry.register(new Scheme("http", 80, PlainSocketFactory.getSocketFactory()));
+            HostnameVerifier verifier = SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER;
+            final SSLSocketFactory sslSocketFactory = SSLSocketFactory.getSocketFactory();
+            sslSocketFactory.setHostnameVerifier((X509HostnameVerifier) verifier);
+            schemeRegistry.register(new Scheme("https", sslSocketFactory, 443));
+            HttpsURLConnection.setDefaultHostnameVerifier(verifier);
         }
         connectionPoolMgr = new PoolingClientConnectionManager(schemeRegistry);
         connectionPoolMgr.setMaxTotal(getMaxHttpConnections()); // maximum total connections
-        connectionPoolMgr.setDefaultMaxPerRoute(getMaxHttpConnectionsPerRoute()); // maximumconnections per route
+        connectionPoolMgr.setDefaultMaxPerRoute(getMaxHttpConnectionsPerRoute()); // maximum connections per route
 
         // Create a client that can be shared by multiple threads
         client = new DefaultHttpClient(connectionPoolMgr);
