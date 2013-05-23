@@ -17,6 +17,14 @@ function ba_submit2() {
   ba_rest('POST', endpoint + '/badges/verify'+query, null, ba_okf, ba_errf);
 }
 
+function ba_submit3() {
+  var e = document.getElementById('ba_e').value;
+  var d = document.getElementById('ba_d').value;
+  var endpoint = document.getElementById('ba_end').value;
+  var query = '?e='+e+"&d="+d;
+  ba_rest('POST', endpoint + '/badges/support'+query, null, ba_okf, ba_errf);
+}
+
 function ba_cancel_submit(code) {
     if (ba_dialog_closed) {
          ba_dialog_closed(code);

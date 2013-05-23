@@ -36,6 +36,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 /**
  * @author rk@post.harvard.edu
@@ -60,8 +61,7 @@ public final class BadgeManager {
     private static final long FIFTEEN_MINUTES_IN_MS = (1000l * 60 * 15);
     private static final long ONE_YEAR_IN_MILLIS = (1000l * 60 * 60 * 24 * 365);
 
-    private static final int BADGE_REFUSED_DUE_TO_TIMEOUT = 1;
-    private static final int BADGE_REFUSED_DUE_TO_TOO_MANY_RETRIES = 2;
+    public static final Pattern emailPattern = Pattern.compile("^[_A-Za-z0-9-]+(\\.[_A-Za-z0-9-]+)*@[A-Za-z0-9]+(\\.[A-Za-z0-9]+)*(\\.[A-Za-z]{2,})$");
 
     private final String devEndpoint;
     private String endpoint;
@@ -73,9 +73,9 @@ public final class BadgeManager {
     private DBCollection badgeCollection;
     private DBCollection transactionCollection;
     private DBCollection appCollection;
+    private DBCollection graphCollection;
     private MailManager emailMgr;
     private DefaultHttpClient client;
-    //    private ClientConnectionManager connectionManager;
     private PoolingClientConnectionManager connectionPoolMgr;
     private Integer maxHttpConnections;
     private Integer maxHttpConnectionsPerRoute;
@@ -116,6 +116,7 @@ public final class BadgeManager {
             this.badgeCollection = storeManager.getBadgesCollection();
             this.transactionCollection = storeManager.getTransactionCollection();
             this.appCollection = storeManager.getAppCollection();
+            this.graphCollection = MongoStoreManager.getInstance().getGraphCollection();
             this.emailMgr = MailManager.getInstance();
             if (badgeCollection == null || transactionCollection == null || appCollection == null || emailMgr == null) {
                 logger.severe("BadgeManager: Start preconditions failed");
@@ -212,30 +213,32 @@ public final class BadgeManager {
 
         // First, validate the tx token to make sure we're dealing with a bona fide client
         if (txToken == null) {
-            return makeGenericResponse("crednotok", null);
+            return makeGenericResponse("crednotok", null, true);
         }
         final DBObject queryTx = new BasicDBObject(TransactionDAOConstants.ID_FIELDNAME, txToken);
         final DBObject tx = transactionCollection.findOne(queryTx);
         if (tx == null) {
-            return makeGenericResponse("crednotokreg", null);
+            return makeGenericResponse("crednotokreg", null, true);
         }
         final Object state = tx.get(TransactionDAOConstants.STATE_FIELDNAME);
         if (state == null || !state.equals(TransactionDAOConstants.STATE_PENDING_CREDENTIALS)) {
-            return makeGenericResponse("credstateconflict", null);
+            return makeGenericResponse("credstateconflict", null, true);
         }
         final Object created = tx.get(TransactionDAOConstants.TRANSACTION_STARTED_DATETIME_FIELDNAME);
         if (created != null) { // check 15 minute timeout
             final Date c = (Date) created;
             if ((c.getTime() + FIFTEEN_MINUTES_IN_MS) < System.currentTimeMillis()) {
-                return makeGenericResponse("credtimeout", VERIFICATION_TIMEOUT_MESSAGE);
+                return makeGenericResponse("credtimeout", VERIFICATION_TIMEOUT_MESSAGE, true);
             }
         } else {
-            return makeGenericResponse("crednocreate", null);
+            return makeGenericResponse("crednocreate", null, true);
         }
 
         if (!isEmailAddressValid(emailAddress)) {
-            // TODO retransmit badges to blahgua
             return Response.ok(createInfoRequestForm(txToken, true)).build();
+        }
+        if (!isDomainSupported(getEmailDomain(emailAddress))) {
+            return makeDomainNotSupportedResponse(getEmailDomain(emailAddress));
         }
 
         final List<DBObject> badges = getActiveBadgesForEmailAddress(emailAddress);
@@ -253,17 +256,21 @@ public final class BadgeManager {
             final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAOConstants.ID_FIELDNAME, appId));
             if (app == null) {
                 logger.warning("Ignored attempt to complete badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
-                return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE);
+                return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE, true);
             }
             final String endpoint = HTTPS_PROTOCOL + (SystemManager.getInstance().isDevMode() ? (getDevBlahguaDomain()) : (String) app.get(ApplicationDAOConstants.SPONSOR_ENDPOINT_FIELDNAME));
             final String relativePath = (String) app.get(ApplicationDAOConstants.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
             final Response response = transmitBadges(txId, appId, endpoint + "/" + relativePath, badges);
-            return (response == null) ? makeGenericResponse(null, BADGE_ALREADY_GRANTED_AND_ACTIVE) : response;
+            return (response == null) ? makeGenericResponse(null, BADGE_ALREADY_GRANTED_AND_ACTIVE, true) : response;
         } else {  // sense a validation response message and verification email
             return makeValidationCodeResponse(txToken, emailAddress, queryTx);
         }
 
 
+    }
+
+    private boolean isDomainSupported(String domain) {
+        return graphCollection.count(new BasicDBObject(GraphDAOConstants.DOMAIN, domain)) > 0;
     }
 
     private Response makeValidationCodeResponse(String txToken, String emailAddress, DBObject queryTx) {
@@ -273,7 +280,7 @@ public final class BadgeManager {
             SystemManager.getInstance().setSecureRandomBytes(rand);
         } catch (UnsupportedEncodingException e) {
             logger.log(Level.SEVERE, "Encryption error", e);
-            return makeGenericResponse("credencode", null);
+            return makeGenericResponse("credencode", null, true);
         }
         final String verificationCode = Base64.encodeBase64URLSafeString(rand);
 
@@ -286,15 +293,15 @@ public final class BadgeManager {
         final WriteResult wr = transactionCollection.update(queryTx, setter);
         if (wr.getError() != null) {
             logger.severe("Failed to update transaction token '" + txToken + "' code 'txupdb'. DB error: " + wr.getError());
-            return makeGenericResponse("txupdb", null);
+            return makeGenericResponse("txupdb", null, true);
         }
 
         // TODO Send verification email with the verificationCode
         try {
-            emailMgr.send(emailAddress, "Your Badging Request", makeEmailBody(verificationCode));
+            emailMgr.send(emailAddress, "Your Badging Request", makeRequestVerificationCodeEmailBody(verificationCode));
         } catch (MessagingException e) {
             logger.log(Level.SEVERE, "Failed to send email", e);
-            return makeGenericResponse("mai", null);
+            return makeGenericResponse("mai", null, true);
         }
 
         // Return HTML form requesting authorization code from user
@@ -312,12 +319,12 @@ public final class BadgeManager {
 
         // First, ensure we have a valid tx
         if (txToken == null) {
-            return makeGenericResponse("vernotok", null);
+            return makeGenericResponse("vernotok", null, true);
         }
         final DBObject txQuery = new BasicDBObject(TransactionDAOConstants.ID_FIELDNAME, txToken);
         final DBObject tx = transactionCollection.findOne(txQuery);
         if (tx == null) {
-            return makeGenericResponse("vernotokreg", null);
+            return makeGenericResponse("vernotokreg", null, true);
         }
 
         final Object vcode = tx.get(TransactionDAOConstants.VERIFICATION_CODE_FIELDNAME);
@@ -329,10 +336,10 @@ public final class BadgeManager {
         final Integer retries = (Integer) tx.get(TransactionDAOConstants.RETRY_COUNT_FIELDNAME);
         if (retries != null && retries > 2) {
             transmitBadgeRefusal(tx, TransactionDAOConstants.REFUSAL_TOO_MANY_RETRIES);
-            return makeGenericResponse("vertoomanyattempts", "<p>Sorry, too many attempts to enter verification code. Try again later.</p>");
+            return makeGenericResponse("vertoomanyattempts", "<p>Sorry, too many attempts to enter verification code. Try again later.</p>", true);
         } else if ((created.getTime() + TEN_MINUTES_IN_MS) < System.currentTimeMillis()) {
             transmitBadgeRefusal(tx, TransactionDAOConstants.REFUSAL_USER_TIMEOUT);
-            return makeGenericResponse("vertimeout", VERIFICATION_TIMEOUT_MESSAGE);
+            return makeGenericResponse("vertimeout", VERIFICATION_TIMEOUT_MESSAGE, true);
         }
 
         transactionCollection.update(txQuery, new BasicDBObject("$inc", new BasicDBObject(TransactionDAOConstants.RETRY_COUNT_FIELDNAME, 1)));
@@ -340,12 +347,38 @@ public final class BadgeManager {
         return Response.ok(createVerificationCodeRequestForm(txToken, true)).build();
     }
 
-    // Expects non-null errorCode!
-    private Response makeGenericResponse(String errorCode, String msg) {
+    /**
+     * <p>Called when a user has made a support request.</p>
+     * <p>Presently, this is used to request that badging be supported for a given domain.</p>
+     *
+     * @param userEmailAddress The email address of the requesting user
+     * @param domain           The domain requested
+     * @return An appropriate response object.
+     */
+    public Response handleSupportCall(String userEmailAddress, String domain) {
+        final StringBuilder b = new StringBuilder("<p>Someone has requested that the badge authority support the domain ");
+        b.append(domain);
+        b.append(".</p><p>The user posted the email address ");
+        b.append(userEmailAddress);
+        b.append(" when making this request.");
+        try {
+            emailMgr.send("bdg@eweware.com", "User Request: Badge Authority support for '" + domain + "' domain", b.toString());
+        } catch (MessagingException e) {
+            logger.log(Level.SEVERE, "Email not sent. Failed to post user support request: " + b.toString(), e);
+        }
+        final StringBuilder response = new StringBuilder("<p>Thank you! Our support group has been notified of your request to add ");
+        response.append(domain);
+        response.append(" to this badging authority.<p>");
+        return makeGenericResponse("support", response.toString(), false);
+    }
+
+    private Response makeGenericResponse(String errorCode, String msg, boolean showCode) {
         final StringBuilder b = new StringBuilder((msg == null) ? DEFAULT_SYSTEM_ERROR_MESSAGE : msg);
-        b.append("<div>Code ");
-        b.append(errorCode);
-        b.append("</div>");
+        if (showCode) {
+            b.append("<div>Code ");
+            b.append(errorCode);
+            b.append("</div>");
+        }
         b.append("<input type='button' onclick='ba_cancel_submit(\"");
         b.append(errorCode);
         b.append("\")' value='OK'/>");
@@ -417,7 +450,7 @@ public final class BadgeManager {
         final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAOConstants.ID_FIELDNAME, appId));
         if (app == null) {
             logger.warning("Ignored attempt to complete badge creation for nonexistent app id. txId '" + txId + "', appId '" + appId + "'");
-            return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE);
+            return makeGenericResponse("noappreg", APP_NOT_REGISTERED_ERROR_MESSAGE, true);
         }
         final String endpoint = HTTPS_PROTOCOL + (SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAOConstants.SPONSOR_ENDPOINT_FIELDNAME));
         final String relativePath = (String) app.get(ApplicationDAOConstants.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
@@ -436,7 +469,7 @@ public final class BadgeManager {
                 return (Response) badgeOrResponse;
             } else if (!(badgeOrResponse instanceof DBObject)) {
                 logger.severe("Tried to create badge '" + badgeName + "' for email '" + email + "' but got inappropriate result=" + badgeOrResponse);
-                return makeGenericResponse("syserr", null);
+                return makeGenericResponse("syserr", null, true);
             }
             badges.add((DBObject) badgeOrResponse);
         } else {
@@ -444,7 +477,6 @@ public final class BadgeManager {
         }
 
         // Create abstracted badges, if any
-        final DBCollection graphCollection = MongoStoreManager.getInstance().getGraphCollection();
         final BasicDBObject graphQuery = new BasicDBObject(GraphDAOConstants.DOMAIN, badgeName);
         final DBCursor cursor = graphCollection.find(graphQuery);
         for (DBObject obj : cursor) {
@@ -476,7 +508,7 @@ public final class BadgeManager {
 
         // Transmit badge(s) to sponsor app
         final Response response = transmitBadges(txId, appId, url, badges);
-        return (response == null) ? makeGenericResponse("granted", BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE) : response;
+        return (response == null) ? makeGenericResponse("granted", BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE, true) : response;
     }
 
     /**
@@ -522,12 +554,12 @@ public final class BadgeManager {
             status = postBadgeNotification(url, map);
         } catch (SystemErrorException e) {
             logger.log(Level.SEVERE, "Failed to notify (POST) granted badge id(s) '" + getBadgeIdsAsList(badges) + "' to app '" + appId + "' tx id '" + txId + "' at app url '" + url + "'.", e);
-            return makeGenericResponse("notifyerror", BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK);
+            return makeGenericResponse("notifyerror", BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK, true);
         }
         if (status != HttpStatus.SC_ACCEPTED) { // Requestor dropped on the floor
             logger.severe("Sponsor app '" + appId + "' did not accept badge id(s) '" + getBadgeIdsAsList(badges) + "' for tx id '" + txId + "'. Returned https status=" + status);
             final String code = "notifynotaccepted-" + status;
-            return makeGenericResponse(code, BADGE_GRANTED_BUT_NOT_ACCEPTED_BY_SPONSOR_APP);
+            return makeGenericResponse(code, BADGE_GRANTED_BUT_NOT_ACCEPTED_BY_SPONSOR_APP, true);
         }
         return null;
     }
@@ -563,12 +595,12 @@ public final class BadgeManager {
                 final int status = postBadgeNotification(url, entity);
                 if (status != HttpStatus.SC_ACCEPTED) {
                     logger.warning("Sponsor app '" + appId + "' at '" + url + "' tx id '" + txId + "' did not accept notification of server db error. No recovery needed. Returned http status=" + status);
-                    return makeGenericResponse("badstat-" + status, null);
+                    return makeGenericResponse("badstat-" + status, null, true);
                 }
             } catch (SystemErrorException e) {
                 logger.warning("Error while posting server db error msg to sponsor app '" + appId + "' at '" + url + "' for transaction id='" + txId);
                 final String code = "syscode-" + ((e.getErrorCode() == null) ? "" : e.getErrorCode().toString());
-                return makeGenericResponse(code, null);
+                return makeGenericResponse(code, null, true);
             }
         }
         return badge;
@@ -598,7 +630,7 @@ public final class BadgeManager {
         return email.substring(email.indexOf("@") + 1);
     }
 
-    private String makeEmailBody(String verificationCode) {
+    private String makeRequestVerificationCodeEmailBody(String verificationCode) {
         final StringBuilder b = new StringBuilder();
         b.append("<p>To confirm that you own this email address, please enter the following verification code in your browser or application.</p>");
         b.append("<div style='font-weight:bold'>");
@@ -609,7 +641,7 @@ public final class BadgeManager {
     }
 
     private boolean isEmailAddressValid(String emailAddress) {
-        return (emailAddress != null && emailAddress.indexOf("@") != -1); // TODO
+        return (emailAddress != null && emailPattern.matcher(emailAddress).matches());
     }
 
     /**
@@ -663,6 +695,38 @@ public final class BadgeManager {
         b.append("  </div>");
         b.append("</form>");
         return b.toString();
+    }
+
+    /**
+     * <p>Sent to user who tried to get a badge for a domain not in the graph.</p>
+     * @param email The user's email address
+     * @return <p>An appropriate response object</p>
+     */
+    private Response makeDomainNotSupportedResponse(String email) {
+        final String domain = getEmailDomain(email);
+        final StringBuilder b = new StringBuilder();
+        b.append("<script src='");
+        b.append(getEndpoint());
+        b.append("/js/ba_api.js'></script>");
+        b.append("<form id='ba_form' action='");
+        b.append(getRestEndpoint());
+        b.append("/badges/support' method='post'>");
+        b.append("<p>Sorry, we currently do not badge the domain '" + domain + "'.");
+        b.append(" If you'd like this authority to consider this domain, click the <b>Request Domain</b> button.</p>");
+        b.append("<p>If you do request a change, please understand that your email address will be sent to the badge authority in case we need to ask you any questions in order to better understand the need. Thanks!</p>");
+        b.append("  <div>");
+        b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
+        b.append("    <input type='hidden' id='ba_e' name='e' value='" + email + "'/>");
+        b.append("    <input type='hidden' id='ba_d' name='d' value='" + domain + "'/>");
+        b.append("    <input type='submit' onclick='ba_submit3(); return false' value='Request Domain");
+        b.append(domain);
+        b.append("'/>");
+        b.append("    <input type='button' onclick='ba_cancel_submit(\"support\")' value='Cancel'/>");
+        b.append("  </div>");
+        b.append("</form>");
+
+
+        return null;
     }
 
     private boolean checkApplication(String appName, String appPassword) {

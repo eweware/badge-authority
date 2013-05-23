@@ -79,5 +79,15 @@ public class BadgesResource {
             @QueryParam("c") String verificationCode) {
         return BadgeManager.getInstance().verify(txToken, verificationCode);
     }
+
+    @POST
+    @Path("/support")
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response supportCall(
+            @QueryParam("e") String userEmailAddress,
+            @QueryParam("d") String domain
+    ) {
+        return BadgeManager.getInstance().handleSupportCall(userEmailAddress, domain);
+    }
 }
 
