@@ -87,6 +87,7 @@ public class BadgesResource {
             @QueryParam("e") String userEmailAddress,
             @QueryParam("d") String domain
     ) {
+        logger.info("Received support call from " + userEmailAddress + " for domain " + domain);
         return BadgeManager.getInstance().handleSupportCall(userEmailAddress, domain);
     }
 }

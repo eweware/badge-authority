@@ -270,7 +270,9 @@ public final class BadgeManager {
     }
 
     private boolean isDomainSupported(String domain) {
-        return graphCollection.count(new BasicDBObject(GraphDAOConstants.DOMAIN, domain)) > 0;
+        final boolean supported = graphCollection.count(new BasicDBObject(GraphDAOConstants.DOMAIN, domain)) > 0;
+        logger.info("Domain " + domain + " support state=" + supported);
+        return supported;
     }
 
     private Response makeValidationCodeResponse(String txToken, String emailAddress, DBObject queryTx) {
@@ -362,7 +364,7 @@ public final class BadgeManager {
         b.append(userEmailAddress);
         b.append(" when making this request.");
         try {
-            emailMgr.send("bdg@eweware.com", "User Request: Badge Authority support for '" + domain + "' domain", b.toString());
+            emailMgr.send("rk@eweware.com", "User Request: Badge Authority support for '" + domain + "' domain", b.toString());
         } catch (MessagingException e) {
             logger.log(Level.SEVERE, "Email not sent. Failed to post user support request: " + b.toString(), e);
         }
@@ -382,6 +384,37 @@ public final class BadgeManager {
         b.append("<input type='button' onclick='ba_cancel_submit(\"");
         b.append(errorCode);
         b.append("\")' value='OK'/>");
+        return Response.ok(b.toString()).build();
+    }
+
+    /**
+     * <p>Sent to user who tried to get a badge for a domain not in the graph.</p>
+     * @param email The user's email address
+     * @return <p>An appropriate response object</p>
+     */
+    private Response makeDomainNotSupportedResponse(String email) {
+        final String domain = getEmailDomain(email);
+        final StringBuilder b = new StringBuilder();
+        b.append("<script src='");
+        b.append(getEndpoint());
+        b.append("/js/ba_api.js'></script>");
+        b.append("<form id='ba_form' action='");
+        b.append(getRestEndpoint());
+        b.append("/badges/support' method='post'>");
+        b.append("<p>Sorry, we currently do not badge the domain '" + domain + "'.");
+        b.append(" If you'd like this authority to consider this domain, click the <b>Request Domain</b> button.</p>");
+        b.append("<p>If you do request a change, please understand that your email address will be sent to the badge authority in case we need to ask you any questions in order to better understand the need. Thanks!</p>");
+        b.append("  <div>");
+        b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
+        b.append("    <input type='hidden' id='ba_e' name='e' value='" + email + "'/>");
+        b.append("    <input type='hidden' id='ba_d' name='d' value='" + domain + "'/>");
+        b.append("    <input type='submit' onclick='ba_submit3(); return false' value='Request Domain");
+        b.append(domain);
+        b.append("'/>");
+        b.append("    <input type='button' onclick='ba_cancel_submit(\"support\")' value='Cancel'/>");
+        b.append("  </div>");
+        b.append("</form>");
+        logger.info("Sending response:\n" + b.toString());
         return Response.ok(b.toString()).build();
     }
 
@@ -695,38 +728,6 @@ public final class BadgeManager {
         b.append("  </div>");
         b.append("</form>");
         return b.toString();
-    }
-
-    /**
-     * <p>Sent to user who tried to get a badge for a domain not in the graph.</p>
-     * @param email The user's email address
-     * @return <p>An appropriate response object</p>
-     */
-    private Response makeDomainNotSupportedResponse(String email) {
-        final String domain = getEmailDomain(email);
-        final StringBuilder b = new StringBuilder();
-        b.append("<script src='");
-        b.append(getEndpoint());
-        b.append("/js/ba_api.js'></script>");
-        b.append("<form id='ba_form' action='");
-        b.append(getRestEndpoint());
-        b.append("/badges/support' method='post'>");
-        b.append("<p>Sorry, we currently do not badge the domain '" + domain + "'.");
-        b.append(" If you'd like this authority to consider this domain, click the <b>Request Domain</b> button.</p>");
-        b.append("<p>If you do request a change, please understand that your email address will be sent to the badge authority in case we need to ask you any questions in order to better understand the need. Thanks!</p>");
-        b.append("  <div>");
-        b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
-        b.append("    <input type='hidden' id='ba_e' name='e' value='" + email + "'/>");
-        b.append("    <input type='hidden' id='ba_d' name='d' value='" + domain + "'/>");
-        b.append("    <input type='submit' onclick='ba_submit3(); return false' value='Request Domain");
-        b.append(domain);
-        b.append("'/>");
-        b.append("    <input type='button' onclick='ba_cancel_submit(\"support\")' value='Cancel'/>");
-        b.append("  </div>");
-        b.append("</form>");
-
-
-        return null;
     }
 
     private boolean checkApplication(String appName, String appPassword) {
