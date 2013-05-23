@@ -238,7 +238,7 @@ public final class BadgeManager {
             return Response.ok(createInfoRequestForm(txToken, true)).build();
         }
         if (!isDomainSupported(getEmailDomain(emailAddress))) {
-            return makeDomainNotSupportedResponse(getEmailDomain(emailAddress));
+            return makeDomainNotSupportedResponse(emailAddress);
         }
 
         final List<DBObject> badges = getActiveBadgesForEmailAddress(emailAddress);
@@ -364,7 +364,7 @@ public final class BadgeManager {
         b.append(userEmailAddress);
         b.append(" when making this request.");
         try {
-            emailMgr.send("rk@eweware.com", "User Request: Badge Authority support for '" + domain + "' domain", b.toString());
+            emailMgr.send("rk@eweware.com,bdg@eweware.com", "User Request: Badge Authority support for '" + domain + "' domain", b.toString());
         } catch (MessagingException e) {
             logger.log(Level.SEVERE, "Email not sent. Failed to post user support request: " + b.toString(), e);
         }
@@ -389,11 +389,11 @@ public final class BadgeManager {
 
     /**
      * <p>Sent to user who tried to get a badge for a domain not in the graph.</p>
-     * @param email The user's email address
+     * @param emailAddress The user's email address
      * @return <p>An appropriate response object</p>
      */
-    private Response makeDomainNotSupportedResponse(String email) {
-        final String domain = getEmailDomain(email);
+    private Response makeDomainNotSupportedResponse(String emailAddress) {
+        final String domain = getEmailDomain(emailAddress);
         final StringBuilder b = new StringBuilder();
         b.append("<script src='");
         b.append(getEndpoint());
@@ -406,9 +406,9 @@ public final class BadgeManager {
         b.append("<p>If you do request a change, please understand that your email address will be sent to the badge authority in case we need to ask you any questions in order to better understand the need. Thanks!</p>");
         b.append("  <div>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
-        b.append("    <input type='hidden' id='ba_e' name='e' value='" + email + "'/>");
+        b.append("    <input type='hidden' id='ba_e' name='e' value='" + emailAddress + "'/>");
         b.append("    <input type='hidden' id='ba_d' name='d' value='" + domain + "'/>");
-        b.append("    <input type='submit' onclick='ba_submit3(); return false' value='Request Domain");
+        b.append("    <input type='submit' onclick='ba_submit3(); return false' value='Request Domain ");
         b.append(domain);
         b.append("'/>");
         b.append("    <input type='button' onclick='ba_cancel_submit(\"support\")' value='Cancel'/>");
