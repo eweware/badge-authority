@@ -271,7 +271,7 @@ public final class BadgeManager {
 
     private boolean isDomainSupported(String domain) {
         final boolean supported = graphCollection.count(new BasicDBObject(GraphDAOConstants.DOMAIN, domain)) > 0;
-        logger.info("Domain " + domain + " support state=" + supported);
+//        logger.info("Domain " + domain + " support state=" + supported);
         return supported;
     }
 
@@ -414,7 +414,7 @@ public final class BadgeManager {
         b.append("    <input type='button' onclick='ba_cancel_submit(\"support\")' value='Cancel'/>");
         b.append("  </div>");
         b.append("</form>");
-        logger.info("Sending response:\n" + b.toString());
+//        logger.info("Sending response:\n" + b.toString());
         return Response.ok(b.toString()).build();
     }
 
