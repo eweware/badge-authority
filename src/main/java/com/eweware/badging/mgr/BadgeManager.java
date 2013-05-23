@@ -583,7 +583,7 @@ public final class BadgeManager {
             map.put(BadgingNotificationEntity.TRANSACTION_ID_FIELDNAME, txId);
             map.put(BadgingNotificationEntity.AUTHORITY_FIELDNAME, getDomain());
             map.put(BadgingNotificationEntity.STATE_FIELDNAME, BadgingNotificationEntity.STATE_GRANTED);
-            logger.info("SENDING BADGES:\n" + map);
+//            logger.info("SENDING BADGES:\n" + map);
             status = postBadgeNotification(url, map);
         } catch (SystemErrorException e) {
             logger.log(Level.SEVERE, "Failed to notify (POST) granted badge id(s) '" + getBadgeIdsAsList(badges) + "' to app '" + appId + "' tx id '" + txId + "' at app url '" + url + "'.", e);
