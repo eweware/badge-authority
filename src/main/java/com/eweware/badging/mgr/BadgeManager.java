@@ -389,7 +389,7 @@ public final class BadgeManager {
         entity.put(BadgingNotificationEntity.AUTHORITY_FIELDNAME, getDomain());
         entity.put(BadgingNotificationEntity.STATE_FIELDNAME, newTxState);
         try {
-            final int status = postBadgeCreationNotification(url, entity);
+            final int status = postBadgeNotification(url, entity);
             if (status != HttpStatus.SC_ACCEPTED) { // Requestor dropped on the floor
                 logger.warning("Sponsor app did not accept badge refusal. Returned https status=" + status);
                 // TODO roll back?
@@ -411,7 +411,7 @@ public final class BadgeManager {
         final String txId = (String) tx.get(TransactionDAOConstants.ID_FIELDNAME);
         final String email = (String) tx.get(TransactionDAOConstants.USER_EMAIL_ADDRESS_FIELDNAME);
         final String appId = (String) tx.get(TransactionDAOConstants.SPONSOR_APP_ID_FIELDNAME);
-        final String emailDomain = getEmailDomain(email);
+        final String badgeName = getEmailDomain(email);
 
         // Get/check app
         final DBObject app = appCollection.findOne(new BasicDBObject(ApplicationDAOConstants.ID_FIELDNAME, appId));
@@ -426,32 +426,43 @@ public final class BadgeManager {
         final List<DBObject> badges = new ArrayList<DBObject>(3);
         final Date expires = new Date(System.currentTimeMillis() + ONE_YEAR_IN_MILLIS);
 
-        // Make email type badge
-        final Object result = createBadge(emailDomain, email, BadgeDAOConstants.BADGE_TYPE_EMAIL, expires, appId, txId, relativePath);
-        if (result instanceof Response) {
-            final Response response = (Response) result;
-            logger.warning("Tried to create badge for email '" + email + "' but got a bad response status=" + response.getStatus() + " entity '" + response.getEntity() + "'");
-            return (Response) result;
-        } else if (!(result instanceof DBObject)) {
-            // TODO deal with this case
+        // Maybe make email type badge
+        final DBObject existingEmailBadge = getBadge(badgeName, email);
+        if (existingEmailBadge == null) {
+            final Object badgeOrResponse = createBadge(badgeName, email, BadgeDAOConstants.BADGE_TYPE_EMAIL, expires, appId, txId, relativePath);
+            if (badgeOrResponse instanceof Response) {
+                final Response response = (Response) badgeOrResponse;
+                logger.warning("Tried to create badge '" + badgeName + "' for email '" + email + "' but got a bad response status=" + response.getStatus() + " entity '" + response.getEntity() + "'");
+                return (Response) badgeOrResponse;
+            } else if (!(badgeOrResponse instanceof DBObject)) {
+                logger.severe("Tried to create badge '" + badgeName + "' for email '" + email + "' but got inappropriate result=" + badgeOrResponse);
+                return makeGenericResponse("syserr", null);
+            }
+            badges.add((DBObject) badgeOrResponse);
+        } else {
+            badges.add(existingEmailBadge);
         }
-        badges.add((DBObject) result);
 
         // Create abstracted badges, if any
         final DBCollection graphCollection = MongoStoreManager.getInstance().getGraphCollection();
-        final BasicDBObject graphQuery = new BasicDBObject(GraphDAOConstants.DOMAIN, emailDomain);
+        final BasicDBObject graphQuery = new BasicDBObject(GraphDAOConstants.DOMAIN, badgeName);
         final DBCursor cursor = graphCollection.find(graphQuery);
         for (DBObject obj : cursor) {
-            final String abstraction = (String) obj.get(GraphDAOConstants.ABSTRACTION);
-            final Object abstractBadge = createBadge(abstraction, email, BadgeDAOConstants.BADGE_TYPE_ABSTRACTION, expires, appId, txId, relativePath);
-            if (abstractBadge instanceof Response) {
-                final Response response = (Response) result;
-                logger.warning("Tried to create abstract badge named '" + abstraction + "' for email '" + email + "' but got a bad response status=" + response.getStatus() + " entity '" + response.getEntity() + "'");
-                return (Response) result;
-            } else if (!(result instanceof DBObject)) {
-                // TODO deal with this case
+            final String derivativeBadgeName = (String) obj.get(GraphDAOConstants.ABSTRACTION);
+            final DBObject existingDerivativeBadge = getBadge(derivativeBadgeName, email);
+            if (existingDerivativeBadge == null) {
+                final Object abstractBadgeOrResponse = createBadge(derivativeBadgeName, email, BadgeDAOConstants.BADGE_TYPE_ABSTRACTION, expires, appId, txId, relativePath);
+                if (abstractBadgeOrResponse instanceof Response) {
+                    final Response response = (Response) abstractBadgeOrResponse;
+                    logger.warning("Tried to create abstract badge named '" + derivativeBadgeName + "' for email '" + email + "' but got a bad response status=" + response.getStatus() + " entity '" + response.getEntity() + "'");
+                    return (Response) abstractBadgeOrResponse;
+                } else if (!(abstractBadgeOrResponse instanceof DBObject)) {
+                    // TODO deal with this case
+                }
+                badges.add((DBObject) abstractBadgeOrResponse);
+            } else {
+                badges.add(existingDerivativeBadge);
             }
-            badges.add((DBObject) abstractBadge);
         }
 
 
@@ -466,6 +477,18 @@ public final class BadgeManager {
         // Transmit badge(s) to sponsor app
         final Response response = transmitBadges(txId, appId, url, badges);
         return (response == null) ? makeGenericResponse("granted", BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE) : response;
+    }
+
+    /**
+     * <p>Returns badge for the specified badge name and owner email address; or null if the badge doesn't exist.</p>
+     * @param badgeName
+     * @param email
+     * @return   <p>Returns badge for the specified badge name and owner email address; or null if the badge doesn't exist.</p>
+     */
+    private DBObject getBadge(String badgeName, String email) {
+        final BasicDBObject query = new BasicDBObject(BadgeDAOConstants.BADGE_NAME_FIELDNAME, badgeName);
+        query.put(BadgeDAOConstants.OWNER_EMAIL_ADDRESS, email);
+        return badgeCollection.findOne(query);
     }
 
     /**
@@ -496,7 +519,7 @@ public final class BadgeManager {
             map.put(BadgingNotificationEntity.AUTHORITY_FIELDNAME, getDomain());
             map.put(BadgingNotificationEntity.STATE_FIELDNAME, BadgingNotificationEntity.STATE_GRANTED);
             logger.info("SENDING BADGES:\n" + map);
-            status = postBadgeCreationNotification(url, map);
+            status = postBadgeNotification(url, map);
         } catch (SystemErrorException e) {
             logger.log(Level.SEVERE, "Failed to notify (POST) granted badge id(s) '" + getBadgeIdsAsList(badges) + "' to app '" + appId + "' tx id '" + txId + "' at app url '" + url + "'.", e);
             return makeGenericResponse("notifyerror", BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK);
@@ -537,7 +560,7 @@ public final class BadgeManager {
             entity.put(BadgingNotificationEntity.STATE_FIELDNAME, BadgingNotificationEntity.STATE_SERVER_ERROR);
             final String url = endpoint + "/" + relativePath;
             try {
-                final int status = postBadgeCreationNotification(url, entity);
+                final int status = postBadgeNotification(url, entity);
                 if (status != HttpStatus.SC_ACCEPTED) {
                     logger.warning("Sponsor app '" + appId + "' at '" + url + "' tx id '" + txId + "' did not accept notification of server db error. No recovery needed. Returned http status=" + status);
                     return makeGenericResponse("badstat-" + status, null);
@@ -661,7 +684,7 @@ public final class BadgeManager {
      * @param map
      * @return
      */
-    private int postBadgeCreationNotification(String url, Map<String, Object> map) throws SystemErrorException {
+    private int postBadgeNotification(String url, Map<String, Object> map) throws SystemErrorException {
         HttpPost post = null;
         try {
             post = new HttpPost(url);
