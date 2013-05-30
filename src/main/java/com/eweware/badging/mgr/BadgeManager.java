@@ -549,7 +549,7 @@ public final class BadgeManager {
 
         // Transmit badge(s) to sponsor app
         final Response response = transmitBadges(txId, appId, url, badges);
-        logger.info("sending granted message");
+        logger.info("Granting badges to " + email + ": " + badges);
         return (response == null) ? makeGenericResponse("granted", BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE, false) : response;
     }
 
