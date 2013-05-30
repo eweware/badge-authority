@@ -319,6 +319,8 @@ public final class BadgeManager {
      */
     public Response verify(String txToken, String verificationCode) {
 
+        logger.info("got verification code " + verificationCode);
+
         // First, ensure we have a valid tx
         if (txToken == null) {
             return makeGenericResponse("vernotok", null, true);
@@ -331,8 +333,10 @@ public final class BadgeManager {
 
         final Object vcode = tx.get(TransactionDAOConstants.VERIFICATION_CODE_FIELDNAME);
         if (verificationCode.equals(vcode.toString())) {
+            logger.info("verification code is OK");
             return createAndTransmitBadge(tx);
         }
+            logger.info("verification code is BAD");
 
         final Date created = (Date) tx.get(TransactionDAOConstants.TRANSACTION_STARTED_DATETIME_FIELDNAME);
         final Integer retries = (Integer) tx.get(TransactionDAOConstants.RETRY_COUNT_FIELDNAME);
@@ -505,8 +509,10 @@ public final class BadgeManager {
                 return makeGenericResponse("syserr", null, true);
             }
             badges.add((DBObject) badgeOrResponse);
+            logger.info("adding badge: " + badgeOrResponse);
         } else {
             badges.add(existingEmailBadge);
+            logger.info("adding existing badge: " + existingEmailBadge);
         }
 
         // Create abstracted badges, if any
@@ -525,8 +531,10 @@ public final class BadgeManager {
                     // TODO deal with this case
                 }
                 badges.add((DBObject) abstractBadgeOrResponse);
+                logger.info("Added abstract badge " + abstractBadgeOrResponse);
             } else {
                 badges.add(existingDerivativeBadge);
+                logger.info("Added existing abstract badge " + existingDerivativeBadge);
             }
         }
 
@@ -541,6 +549,7 @@ public final class BadgeManager {
 
         // Transmit badge(s) to sponsor app
         final Response response = transmitBadges(txId, appId, url, badges);
+        logger.info("sending granted message");
         return (response == null) ? makeGenericResponse("granted", BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE, false) : response;
     }
 
