@@ -377,14 +377,9 @@ public final class BadgeManager {
     private Response makeGenericResponse(String errorCode, String msg, boolean showCode) {
         final StringBuilder b = new StringBuilder("<div style='margin: 2em'>");
         b.append((msg == null) ? DEFAULT_SYSTEM_ERROR_MESSAGE : msg);
-//        if (showCode) {
-//            b.append("<div>Code ");
-//            b.append(errorCode);
-//            b.append("</div>");
-//        }
-        b.append("<input style='margin-left: 2em' type='button' onclick='ba_cancel_submit(\"");
+        b.append("<div style='margin-top: 1em;margin-left: 2em'><input type='button' onclick='ba_cancel_submit(\"");
         b.append((errorCode == null) ? "ok" : errorCode);
-        b.append("\")' value='OK'/>");
+        b.append("\")' value='OK'/></div>");
         b.append("</div>");
         return Response.ok(b.toString()).build();
     }
@@ -717,7 +712,7 @@ public final class BadgeManager {
         }
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
         b.append("<div>Email Address: <input name='e' type='text' onchange='ba_email_address = this.value' size='30'/>");
-        b.append("<p style='margin:2em 2em><em>Privacy Statement:</em> Your email address will be known only by this badging authority.");
+        b.append("<p style='margin:2em 2em'><em>Privacy Statement:</em> Your email address will be known only by this badging authority.");
         b.append(" Your sponsor, eweware.com, will not be sent this information.</p>");
         b.append("  <div style='margin-top: 1em'>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
@@ -743,7 +738,7 @@ public final class BadgeManager {
         b.append("<div>Please ");
         b.append(retry ? "enter" : "re-enter");
         b.append(" the verification code that was sent to your email: ");
-        b.append("<input style='margin-left: 2em' name='code' onchange='ba_verification_code = this.value' type='text' size='30' /></div>");
+        b.append("<input style='margin-top: 1em' name='code' onchange='ba_verification_code = this.value' type='text' size='30' /></div>");
 
         b.append("  <div>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
