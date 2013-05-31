@@ -318,7 +318,7 @@ public final class BadgeManager {
      */
     public Response verify(String txToken, String verificationCode) {
 
-        logger.info("got verification code " + verificationCode);
+//        logger.info("got verification code " + verificationCode);
 
         // First, ensure we have a valid tx
         if (txToken == null) {
@@ -332,7 +332,7 @@ public final class BadgeManager {
 
         final Object vcode = tx.get(TransactionDAOConstants.VERIFICATION_CODE_FIELDNAME);
         if (verificationCode.equals(vcode.toString())) {
-            logger.info("verification code is OK");
+//            logger.info("verification code is OK");
             return createAndTransmitBadge(tx);
         }
             logger.info("verification code is BAD");
@@ -504,10 +504,10 @@ public final class BadgeManager {
                 return makeGenericResponse("syserr", null, true);
             }
             badges.add((DBObject) badgeOrResponse);
-            logger.info("adding badge: " + badgeOrResponse);
+            logger.finer("adding badge: " + badgeOrResponse);
         } else {
             badges.add(existingEmailBadge);
-            logger.info("adding existing badge: " + existingEmailBadge);
+            logger.finer("adding existing badge: " + existingEmailBadge);
         }
 
         // Create abstracted badges, if any
@@ -526,10 +526,10 @@ public final class BadgeManager {
                     // TODO deal with this case
                 }
                 badges.add((DBObject) abstractBadgeOrResponse);
-                logger.info("Added abstract badge " + abstractBadgeOrResponse);
+                logger.finer("Added abstract badge " + abstractBadgeOrResponse);
             } else {
                 badges.add(existingDerivativeBadge);
-                logger.info("Added existing abstract badge " + existingDerivativeBadge);
+                logger.finer("Added existing abstract badge " + existingDerivativeBadge);
             }
         }
 
@@ -722,7 +722,7 @@ public final class BadgeManager {
         b.append("  </div>");
         b.append("<div>");
         b.append("</form>");
-        logger.info("createInfoRequestForm:\n" + b.toString());
+//        logger.info("createInfoRequestForm:\n" + b.toString());
         return b.toString();
     }
 
@@ -747,7 +747,7 @@ public final class BadgeManager {
         b.append("    <input type='button' onclick='ba_cancel_submit(\"verification\")' value='Cancel'/>");
         b.append("  </div>");
         b.append("</form>");
-        logger.info("createVerificationCodeRequestForm:\n" + b.toString());
+//        logger.info("createVerificationCodeRequestForm:\n" + b.toString());
         return b.toString();
     }
 
