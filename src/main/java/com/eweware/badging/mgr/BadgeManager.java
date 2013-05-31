@@ -377,7 +377,7 @@ public final class BadgeManager {
     private Response makeGenericResponse(String errorCode, String msg, boolean showCode) {
         final StringBuilder b = new StringBuilder("<div style='margin: 2em'>");
         b.append((msg == null) ? DEFAULT_SYSTEM_ERROR_MESSAGE : msg);
-        b.append("<div style='margin-top: 1em;margin-left: 2em'><input type='button' onclick='ba_cancel_submit(\"");
+        b.append("<div style='margin-top: 1em'><input type='button' onclick='ba_cancel_submit(\"");
         b.append((errorCode == null) ? "ok" : errorCode);
         b.append("\")' value='OK'/></div>");
         b.append("</div>");
@@ -401,7 +401,7 @@ public final class BadgeManager {
         b.append("<p>A badge for the domain '");
         b.append(domain);
         b.append("' is not currently available.");
-        b.append(" To request that this domain be added, click the <em>Request Domain</em> button.</p>");
+        b.append(" To request that this domain be added, click the <b>Request Domain</b> button.</p>");
         b.append("<p>We will retain your email address to inform you when your domain is available.</p>");
         b.append("  <div style='margin-left: 2em'>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
@@ -708,11 +708,11 @@ public final class BadgeManager {
         b.append(getRestEndpoint());
         b.append("/badges/credentials' method='post'>");
         if (invalidEmail) {
-            b.append("<div style='color:red'>You entered an invalid email address. Please re-enter it.</div>");
+            b.append("<div style='color:red;margin-bottom:1em'>You entered an invalid email address. Please re-enter it.</div>");
         }
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
         b.append("<div>Email Address: <input name='e' type='text' onchange='ba_email_address = this.value' size='30'/>");
-        b.append("<p style='margin:2em 2em'><em>Privacy Statement:</em> Your email address will be known only by this badging authority.");
+        b.append("<p style='margin:1em 2em'><b>Privacy Statement:</b> Your email address will be known only by this badging authority.");
         b.append(" Your sponsor, eweware.com, will not be sent this information.</p>");
         b.append("  <div style='margin-top: 1em'>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
@@ -732,14 +732,15 @@ public final class BadgeManager {
         b.append(getRestEndpoint());
         b.append("/badges/verify'>");
         if (retry) {
-            b.append("<div>Sorry, the verification code that you sent was incorrect.</div>");
+            b.append("<div style='margin-bottom:1em;color:red'>Sorry, the verification code that you sent was incorrect.</div>");
         }
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
         b.append("<div>Please ");
         b.append(retry ? "enter" : "re-enter");
         b.append(" the verification code that was sent to your email: ");
-        b.append("<input style='margin-top: 1em' name='code' onchange='ba_verification_code = this.value' type='text' size='30' /></div>");
-
+        b.append("<div style='margin-top: 1em'>");
+        b.append("Code: <input name='code' onchange='ba_verification_code = this.value' type='text' size='30' /></div>");
+        b.append("</div>");
         b.append("  <div>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_tk' name='tk' value='" + txToken + "'/>");
