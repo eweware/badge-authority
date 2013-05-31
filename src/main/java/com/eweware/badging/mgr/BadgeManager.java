@@ -335,7 +335,7 @@ public final class BadgeManager {
 //            logger.info("verification code is OK");
             return createAndTransmitBadge(tx);
         }
-            logger.info("verification code is BAD");
+//            logger.info("verification code is BAD");
 
         final Date created = (Date) tx.get(TransactionDAOConstants.TRANSACTION_STARTED_DATETIME_FIELDNAME);
         final Integer retries = (Integer) tx.get(TransactionDAOConstants.RETRY_COUNT_FIELDNAME);
