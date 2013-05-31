@@ -23,6 +23,11 @@ public class TransactionDAOConstants {
     public static final String SPONSOR_APP_ID_FIELDNAME = "A";
 
     /**
+     * The sponsoring app's display name.
+     */
+    public static final String SPONSOR_APP_DISPLAY_NAME = "D";
+
+    /**
      * Time the transaction started. A transaction can timeout
      * due to user inaction within an application-dependent
      * time duration.

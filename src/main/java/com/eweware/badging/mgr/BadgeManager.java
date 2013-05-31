@@ -160,16 +160,19 @@ public final class BadgeManager {
      * <p>Initiates a badge creation transaction with an end user browser/app via
      * the badge-sponsor app.</p>
      *
-     * @param appName     The username of the badge-sponsor app.
+     * @param appId     The id of the badge-sponsor app.
      * @param appPassword The bad-sponsor app's password.
      * @return An entity containing either an error code or the HTML5 form
      *         that initiates the transaction with the end user.
      */
-    public Response initBadgingTransaction(String appName, String appPassword) {
+    public Response initBadgingTransaction(String appId, String appPassword) {
 
-        if (!checkApplication(appName, appPassword)) {  // be harsh, be cruel
+        final DBObject app = checkApplication(appId, appPassword);
+        if (app == null) {  // be harsh, be cruel
             return Response.status(Response.Status.UNAUTHORIZED).build();
         }
+        final String appDisplayName = (String) app.get(ApplicationDAOConstants.APP_DISPLAY_NAME);
+
         final Map<String, Object> entity = new HashMap<String, Object>();
         final byte[] rand = new byte[20];
         try {
@@ -179,11 +182,12 @@ public final class BadgeManager {
             entity.put("error", e.getMessage());
             return Response.serverError().entity(entity).build();
         }
-        final String txToken = appName + Base64.encodeBase64URLSafeString(rand);
+        final String txToken = appId + Base64.encodeBase64URLSafeString(rand);
 
         final DBObject tr = new BasicDBObject(TransactionDAOConstants.ID_FIELDNAME, txToken);
         tr.put(TransactionDAOConstants.STATE_FIELDNAME, TransactionDAOConstants.STATE_PENDING_CREDENTIALS);    // state := pending getting email address
-        tr.put(TransactionDAOConstants.SPONSOR_APP_ID_FIELDNAME, appName);  // app id := id of sponsor app
+        tr.put(TransactionDAOConstants.SPONSOR_APP_ID_FIELDNAME, appId);
+        tr.put(TransactionDAOConstants.SPONSOR_APP_DISPLAY_NAME, appDisplayName);
         tr.put(TransactionDAOConstants.TRANSACTION_STARTED_DATETIME_FIELDNAME, new Date());
         tr.put(TransactionDAOConstants.RETRY_COUNT_FIELDNAME, 0);
         final WriteResult result = transactionCollection.insert(tr);
@@ -191,7 +195,7 @@ public final class BadgeManager {
             logger.severe("Failed to initiate tx. DB error: " + result.getError());
             return Response.serverError().build();
         } else {
-            final String form = createInfoRequestForm(txToken, false);
+            final String form = createInfoRequestForm(txToken, appDisplayName, false);
             entity.put("form", form);
             entity.put("tx", txToken);
             return Response.ok(entity).build();
@@ -234,7 +238,7 @@ public final class BadgeManager {
         }
 
         if (!isEmailAddressValid(emailAddress)) {
-            return Response.ok(createInfoRequestForm(txToken, true)).build();
+            return Response.ok(createInfoRequestForm(txToken, (String) tx.get(TransactionDAOConstants.SPONSOR_APP_DISPLAY_NAME), true)).build();
         }
         if (!isDomainSupported(getEmailDomain(emailAddress))) {
             return makeDomainNotSupportedResponse(emailAddress);
@@ -693,13 +697,14 @@ public final class BadgeManager {
      * <p>This form is sent to the browser (or app) of the user to be badged
      * via the badge-sponsor app.</p>
      *
+     *
      * @param txToken      The token identifying this transaction.
-     * @param invalidEmail
-     * @return An HTML5 string containing a form to be filled out by the user.
+     * @param appDisplayName   The sponsoring app's display name
+     *@param invalidEmail  @return An HTML5 string containing a form to be filled out by the user.
      *         Subsequent interaction with the user is directly handled by
      *         the badging authority server.
      */
-    private String createInfoRequestForm(String txToken, boolean invalidEmail) {
+    private String createInfoRequestForm(String txToken, String appDisplayName, boolean invalidEmail) {
         final StringBuilder b = new StringBuilder();
         b.append("<script src='");
         b.append(getEndpoint());
@@ -711,9 +716,12 @@ public final class BadgeManager {
             b.append("<div style='color:red;margin-bottom:1em'>You entered an invalid email address. Please re-enter it.</div>");
         }
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
-        b.append("<div>Email Address: <input name='e' type='text' onchange='ba_email_address = this.value' size='30'/>");
+        b.append("<div>Please enter your email address. We'll send a verification code to you which you will use in the next step in this process.</p>");
+        b.append("<div style='margin-top:1em'>Email Address: <input name='e' type='text' onchange='ba_email_address = this.value' size='30'/>");
         b.append("<p style='margin:1em 2em'><b>Privacy Statement:</b> Your email address will be known only by this badging authority.");
-        b.append(" Your sponsor, eweware.com, will not be sent this information.</p>");
+        b.append(" Your sponsor, ");
+        b.append(appDisplayName);
+        b.append(", will not be sent this information.</p>");
         b.append("  <div style='margin-top: 1em'>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_tk' name='tk' value='" + txToken + "'/>");
@@ -736,12 +744,12 @@ public final class BadgeManager {
         }
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
         b.append("<div>Please ");
-        b.append(retry ? "enter" : "re-enter");
+        b.append(retry ? "re-enter" : "enter");
         b.append(" the verification code that was sent to your email: ");
         b.append("<div style='margin-top: 1em'>");
         b.append("Code: <input name='code' onchange='ba_verification_code = this.value' type='text' size='30' /></div>");
         b.append("</div>");
-        b.append("  <div>");
+        b.append("  <div style='margin-top:1em'>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_tk' name='tk' value='" + txToken + "'/>");
         b.append("    <input type='submit' onclick='ba_submit2(); return false' value='Submit'/>");
@@ -752,16 +760,16 @@ public final class BadgeManager {
         return b.toString();
     }
 
-    private boolean checkApplication(String appName, String appPassword) {
-        final DBObject query = new BasicDBObject(ApplicationDAOConstants.ID_FIELDNAME, appName);
+    private DBObject checkApplication(String appId, String appPassword) {
+        final DBObject query = new BasicDBObject(ApplicationDAOConstants.ID_FIELDNAME, appId);
         final DBObject app = appCollection.findOne(query);
         if (app != null) {
             final String password = (String) app.get(ApplicationDAOConstants.PASSWORD_FIELDNAME);
             if (password != null && password.equals(appPassword)) {
-                return true;
+                return app;
             }
         }
-        return false;
+        return null;
     }
 
     /**
