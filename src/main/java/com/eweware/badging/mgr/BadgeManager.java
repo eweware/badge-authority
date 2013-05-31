@@ -51,7 +51,6 @@ public final class BadgeManager {
     private static final String APP_NOT_REGISTERED_ERROR_MESSAGE = "<p>Your badge request couldn't be handled because your sponsor is no longer registered in this badge authority</p>";
     private static final String BADGE_GRANTED_BUT_NOT_ACCEPTED_BY_SPONSOR_APP = "<p>Your badge request has been granted, but due to a technical problem, your sponsor failed to accept the badge.</p><p>You may try to create the badge again.</p>";
     private static final String BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK = "<p>Your badge request has been granted. However, your sponsor has not been notified due to a network problem.</p>";
-    private static final String BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE = "<p>Congratulations! Your badge request has been granted.</p>";
     private static final String BADGE_ALREADY_GRANTED_AND_ACTIVE = "<p>Your badge was granted in the past and is still active.</p>";
     private static final String HTTPS_PROTOCOL = "https://";
 
@@ -372,22 +371,21 @@ public final class BadgeManager {
         } catch (MessagingException e) {
             logger.log(Level.SEVERE, "Email not sent. Failed to post user support request: " + b.toString(), e);
         }
-        final StringBuilder response = new StringBuilder("<p>Thank you! Our support group has been notified of your request to add ");
-        response.append(domain);
-        response.append(" to this badging authority.<p>");
-        return makeGenericResponse("support", response.toString(), false);
+        return makeGenericResponse("support", "<p>Thank you for your request.<p>", false);
     }
 
     private Response makeGenericResponse(String errorCode, String msg, boolean showCode) {
-        final StringBuilder b = new StringBuilder((msg == null) ? DEFAULT_SYSTEM_ERROR_MESSAGE : msg);
-        if (showCode) {
-            b.append("<div>Code ");
-            b.append(errorCode);
-            b.append("</div>");
-        }
-        b.append("<input type='button' onclick='ba_cancel_submit(\"");
-        b.append(errorCode);
+        final StringBuilder b = new StringBuilder("<div style='margin: 2em'>");
+        b.append((msg == null) ? DEFAULT_SYSTEM_ERROR_MESSAGE : msg);
+//        if (showCode) {
+//            b.append("<div>Code ");
+//            b.append(errorCode);
+//            b.append("</div>");
+//        }
+        b.append("<input style='margin-left: 2em' type='button' onclick='ba_cancel_submit(\"");
+        b.append((errorCode == null) ? "ok" : errorCode);
         b.append("\")' value='OK'/>");
+        b.append("</div>");
         return Response.ok(b.toString()).build();
     }
 
@@ -402,19 +400,19 @@ public final class BadgeManager {
         b.append("<script src='");
         b.append(getEndpoint());
         b.append("/js/ba_api.js'></script>");
-        b.append("<form id='ba_form' action='");
+        b.append("<form style='margin: 2em' id='ba_form' action='");
         b.append(getRestEndpoint());
         b.append("/badges/support' method='post'>");
-        b.append("<p>Sorry, we currently do not badge the domain '" + domain + "'.");
-        b.append(" If you'd like this authority to consider this domain, click the <b>Request Domain</b> button.</p>");
-        b.append("<p>If you do request a change, please understand that your email address will be sent to the badge authority in case we need to ask you any questions in order to better understand the need. Thanks!</p>");
-        b.append("  <div>");
+        b.append("<p>A badge for the domain '");
+        b.append(domain);
+        b.append("' is not currently available.");
+        b.append(" To request that this domain be added, click the <em>Request Domain</em> button.</p>");
+        b.append("<p>We will retain your email address to inform you when your domain is available.</p>");
+        b.append("  <div style='margin-left: 2em'>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_e' name='e' value='" + emailAddress + "'/>");
         b.append("    <input type='hidden' id='ba_d' name='d' value='" + domain + "'/>");
-        b.append("    <input type='submit' onclick='ba_submit3(); return false' value='Request Domain ");
-        b.append(domain);
-        b.append("'/>");
+        b.append("    <input type='submit' onclick='ba_submit3(); return false' value='Request Domain'/>");
         b.append("    <input type='button' onclick='ba_cancel_submit(\"support\")' value='Cancel'/>");
         b.append("  </div>");
         b.append("</form>");
@@ -492,6 +490,8 @@ public final class BadgeManager {
         final String endpoint = HTTPS_PROTOCOL + (SystemManager.getInstance().isDevMode() ? getDevBlahguaDomain() : (String) app.get(ApplicationDAOConstants.SPONSOR_ENDPOINT_FIELDNAME));
         final String relativePath = (String) app.get(ApplicationDAOConstants.BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME);
         final String url = endpoint + "/" + relativePath;
+        final String appDisplayName = (String) app.get(ApplicationDAOConstants.APP_DISPLAY_NAME);
+
         // Make badges
         final List<DBObject> badges = new ArrayList<DBObject>(3);
         final Date expires = new Date(System.currentTimeMillis() + ONE_YEAR_IN_MILLIS);
@@ -550,7 +550,15 @@ public final class BadgeManager {
         // Transmit badge(s) to sponsor app
         final Response response = transmitBadges(txId, appId, url, badges);
         logger.info("Granting badges to " + email + ": " + badges);
-        return (response == null) ? makeGenericResponse("granted", BADGE_SUCCESSFULLY_GRANTED_AND_ACCEPTED_BY_SPONSOR_MESSAGE, false) : response;
+        final StringBuilder msg = new StringBuilder("<p>Congratulations! Your badge request has been granted.</p>");
+        msg.append("<p>Your badge");
+        if (badges.size() > 0) {
+            msg.append("s");
+        }
+        msg.append(" will be sent to your sponsor, ");
+        msg.append(appDisplayName);
+        msg.append(".");
+        return (response == null) ? makeGenericResponse("granted", msg.toString(), false) : response;
     }
 
     /**
@@ -701,34 +709,41 @@ public final class BadgeManager {
         b.append("<script src='");
         b.append(getEndpoint());
         b.append("/js/ba_api.js'></script>");
-        b.append("<form id='ba_form' action='");
+        b.append("<form style='margin: 2em' id='ba_form' action='");
         b.append(getRestEndpoint());
         b.append("/badges/credentials' method='post'>");
         if (invalidEmail) {
             b.append("<div style='color:red'>You entered an invalid email address. Please re-enter it.</div>");
         }
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
-        b.append("  Email Address: <input name='e' type='text' onchange='ba_email_address = this.value' size='30'/>");
+        b.append("<div>Email Address: <input name='e' type='text' onchange='ba_email_address = this.value' size='30'/>");
+        b.append("<p style='margin:2em 2em><em>Privacy Statement:</em> Your email address will be known only by this badging authority.");
+        b.append(" Your sponsor, eweware.com, will not be sent this information.</p>");
         b.append("  <div>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_tk' name='tk' value='" + txToken + "'/>");
         b.append("    <input type='submit' onclick='ba_submit1(); return false' value='Submit'/>");
         b.append("    <input type='button' onclick='ba_cancel_submit(\"credentials\")' value='Cancel'/>");
         b.append("  </div>");
+        b.append("<div>");
         b.append("</form>");
         return b.toString();
     }
 
     private String createVerificationCodeRequestForm(String txToken, boolean retry) {
         final StringBuilder b = new StringBuilder();
-        b.append("<form id='ba_form' method='post' action='");
+        b.append("<form style='margin: 2em' id='ba_form' method='post' action='");
         b.append(getRestEndpoint());
         b.append("/badges/verify'>");
         if (retry) {
             b.append("<div>Sorry, the verification code that you sent was incorrect.</div>");
         }
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
-        b.append("<div>Enter the verification code in the email sent to you: <input name='code' onchange='ba_verification_code = this.value' type='text' size='30' /></div>");
+        b.append("<div>Please ");
+        b.append(retry ? "enter" : "re-enter");
+        b.append(" the verification code that was sent to your email: ");
+        b.append("<input style='margin-left: 2em' name='code' onchange='ba_verification_code = this.value' type='text' size='30' /></div>");
+
         b.append("  <div>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_tk' name='tk' value='" + txToken + "'/>");

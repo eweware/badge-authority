@@ -35,7 +35,7 @@ function ba_cancel_submit(code) {
 }
 
 function ba_okf(result, a, b) {
-  $("#badgedialog").html(result);   // TODO use replace on ba_form instead of this
+  $("#badgedialog").html(result);
 }
 
 function ba_errf(a, b, c) {

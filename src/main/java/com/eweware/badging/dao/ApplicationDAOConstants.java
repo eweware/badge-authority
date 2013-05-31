@@ -8,9 +8,19 @@ public class ApplicationDAOConstants {
 
     public static final String ID_FIELDNAME = "_id";
 
+    /**
+     * <p>The display name of this application. This is used in the UI
+     * interactions.</p>
+     */
+    public static final String APP_DISPLAY_NAME = "D";
+
     // TODO replace with DIGEST & SALT
     public static final String PASSWORD_FIELDNAME = "W";
 
+    /**
+     * <p>The REST endpoint suffix (i.e., without the hostname/port) to which to transmit
+     * badges to this application.</p>
+     */
     public static final String BADGE_CREATION_REST_CALLBACK_RELATIVE_PATH_FIELDNAME = "P"; /* e.g., "badges/add" */
 
     public static final String SPONSOR_ENDPOINT_FIELDNAME = "E";
