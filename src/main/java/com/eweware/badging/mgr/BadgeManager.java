@@ -719,7 +719,7 @@ public final class BadgeManager {
         b.append("<div>Email Address: <input name='e' type='text' onchange='ba_email_address = this.value' size='30'/>");
         b.append("<p style='margin:2em 2em><em>Privacy Statement:</em> Your email address will be known only by this badging authority.");
         b.append(" Your sponsor, eweware.com, will not be sent this information.</p>");
-        b.append("  <div>");
+        b.append("  <div style='margin-top: 1em'>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_tk' name='tk' value='" + txToken + "'/>");
         b.append("    <input type='submit' onclick='ba_submit1(); return false' value='Submit'/>");
@@ -727,6 +727,7 @@ public final class BadgeManager {
         b.append("  </div>");
         b.append("<div>");
         b.append("</form>");
+        logger.info("createInfoRequestForm:\n" + b.toString());
         return b.toString();
     }
 
@@ -751,6 +752,7 @@ public final class BadgeManager {
         b.append("    <input type='button' onclick='ba_cancel_submit(\"verification\")' value='Cancel'/>");
         b.append("  </div>");
         b.append("</form>");
+        logger.info("createVerificationCodeRequestForm:\n" + b.toString());
         return b.toString();
     }
 
