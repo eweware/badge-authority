@@ -740,12 +740,12 @@ public final class BadgeManager {
         b.append(getRestEndpoint());
         b.append("/badges/verify'>");
         if (retry) {
-            b.append("<div style='margin-bottom:1em;color:red'>Sorry, the verification code that you sent was incorrect.</div>");
+            b.append("<div style='margin-bottom:1em;color:red'>Sorry, the verification code that you entered was incorrect.</div>");
         }
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
         b.append("<div>Please ");
         b.append(retry ? "re-enter" : "enter");
-        b.append(" the verification code that was sent to your email: ");
+        b.append(" the verification code that was emailed to you: ");
         b.append("<div style='margin-top: 1em'>");
         b.append("Code: <input name='code' onchange='ba_verification_code = this.value' type='text' size='30' /></div>");
         b.append("</div>");
