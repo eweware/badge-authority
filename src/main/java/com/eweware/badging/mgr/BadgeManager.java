@@ -405,8 +405,8 @@ public final class BadgeManager {
         b.append("<p>A badge for the domain '");
         b.append(domain);
         b.append("' is not currently available.");
-        b.append(" To request that this domain be added, click the <b>Request Domain</b> button.</p>");
-        b.append("<p>We will retain your email address to inform you when your domain is available.</p>");
+        b.append(" To request that this domain be added, click the <b>Request Domain</b> button. ");
+        b.append("We will retain your email address to inform you when your domain is available.</p>");
         b.append("  <div style='margin-left: 2em'>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_e' name='e' value='" + emailAddress + "'/>");
@@ -554,7 +554,7 @@ public final class BadgeManager {
         if (badges.size() > 0) {
             msg.append("s");
         }
-        msg.append(" will be sent to your sponsor, ");
+        msg.append(" have been sent to your sponsor, ");
         msg.append(appDisplayName);
         msg.append(".");
         return (response == null) ? makeGenericResponse("granted", msg.toString(), false) : response;
@@ -716,7 +716,7 @@ public final class BadgeManager {
             b.append("<div style='color:red;margin-bottom:1em'>You entered an invalid email address. Please re-enter it.</div>");
         }
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
-        b.append("<div>Please enter your email address. We'll send a verification code to you which you will use in the next step in this process.</p>");
+        b.append("<div>Enter the email address that you would like to associate with your badges. We'll send a verification code to you to use in the next step in this process.</p>");
         b.append("<div style='margin-top:1em'>Email Address: <input name='e' type='text' onchange='ba_email_address = this.value' size='30'/>");
         b.append("<p style='margin:1em 2em'><b>Privacy Statement:</b> Your email address will be known only by this badging authority.");
         b.append(" Your sponsor, ");
