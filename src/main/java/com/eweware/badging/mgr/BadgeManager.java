@@ -554,7 +554,7 @@ public final class BadgeManager {
         if (badges.size() > 0) {
             msg.append("s");
         }
-        msg.append(" have been sent to your sponsor, ");
+        msg.append(" have been sent to ");
         msg.append(appDisplayName);
         msg.append(".");
         return (response == null) ? makeGenericResponse("granted", msg.toString(), false) : response;
@@ -719,7 +719,7 @@ public final class BadgeManager {
         b.append("<div>Enter the email address that you would like to associate with your badges. We'll send a verification code to you to use in the next step in this process.</p>");
         b.append("<div style='margin-top:1em'>Email Address: <input name='e' type='text' onchange='ba_email_address = this.value' size='30'/>");
         b.append("<p style='margin:1em 2em'><b>Privacy Statement:</b> Your email address will be known only by this badging authority.");
-        b.append(" Your sponsor, ");
+        b.append(" ");
         b.append(appDisplayName);
         b.append(", will not be sent this information.</p>");
         b.append("  <div style='margin-top: 1em'>");
