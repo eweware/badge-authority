@@ -709,6 +709,7 @@ public final class BadgeManager {
         b.append("<script src='");
         b.append(getEndpoint());
         b.append("/js/ba_api.js'></script>");
+        b.append("<script src='/js/spin.js'></script>");
         b.append("<form style='margin: 2em' id='ba_form' action='");
         b.append(getRestEndpoint());
         b.append("/badges/credentials' method='post'>");
