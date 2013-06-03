@@ -20,6 +20,42 @@ public class BadgesResource {
 
     private static final Logger logger = Logger.getLogger("BadgesResource");
 
+    private BadgeManager mgr;
+    public BadgeManager getManager() {
+        if (mgr == null) {
+            mgr = BadgeManager.getInstance();
+        }
+        return mgr;
+    }
+
+    /**
+     * <p>Returns a JSON entity with the the types of badges provided by this authority.</p>
+     * <p>For each domain, it provides the name of the badges it provides.</p>
+     *
+     * <div><b>METHOD: </b> GET</div>
+     * <div><b>URL: </b>/badges/types</div>
+     *
+     * @return <p>Returns a JSON entity containing the following fields.</p>
+     * <div>'errorCode': included only if there is an error. The value is an integer (currently, just 1)</div>
+     * <div>'types': an array of types. Each element of the array is a map containing the following fields:</div>
+     * <div> 'type': A string specifying the type of badge. The possible values are 'e' (email badge) and 'a' (inferrred
+     * from the domain name.</div>
+     * <div> 'domain': a string; the name of a domain (e.g., eweware.com)</div>
+     * <div> 'badgeName': a string; the name of a badge provided by the domain (e.g., eweware.com
+     * if it is an email type, or Tech Industry if it is an inferred type).</div>
+     */
+    @GET
+    @Path("/types")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getBadgeTypes() {
+        try {
+            return getManager().getBadgeTypes();
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Failed to provide badge types", e);
+            return Response.serverError().build();
+        }
+    }
+
     /**
      * <p>The badge requestor (an app) uses this to provide its credentials and to request that a badge
      * be created.</p>
@@ -47,7 +83,7 @@ public class BadgesResource {
         final String appName = (String) entity.get("a");
         final String appPassword = (String) entity.get("p");
         try {
-            final Response response = BadgeManager.getInstance().initBadgingTransaction(appName, appPassword);
+            final Response response = getManager().initBadgingTransaction(appName, appPassword);
             return response;
         } catch (Exception e) {
             logger.log(Level.SEVERE, e.getMessage(), e);
@@ -67,7 +103,7 @@ public class BadgesResource {
 
 //        final String requestURI = request.getRequestURI();
 //        final StringBuffer requestURL = request.getRequestURL();
-        return BadgeManager.getInstance().processUserCredentials(txToken, email);
+        return getManager().processUserCredentials(txToken, email);
     }
 
     @POST
@@ -77,7 +113,7 @@ public class BadgesResource {
     public Response verify(
             @QueryParam("tk") String txToken,
             @QueryParam("c") String verificationCode) {
-        return BadgeManager.getInstance().verify(txToken, verificationCode);
+        return getManager().verify(txToken, verificationCode);
     }
 
     @POST
@@ -88,7 +124,7 @@ public class BadgesResource {
             @QueryParam("d") String domain
     ) {
 //        logger.info("Received support call from " + userEmailAddress + " for domain " + domain);
-        return BadgeManager.getInstance().handleSupportCall(userEmailAddress, domain);
+        return getManager().handleSupportCall(userEmailAddress, domain);
     }
 }
 

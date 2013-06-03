@@ -9,9 +9,17 @@ public class GraphDAOConstants {
     /**
      * The id is composed of two bar-delimited strings. The first
      * string is the domain, and the second string is the name of
-     * the abstract badge. E.g., 'apple.com|Tech Industry'.
+     * the inferred badge. E.g., 'apple.com|Tech Industry'.
      */
     public static final String GRAPH_ID = "_id";
+
+    /**
+     * The version of this representation of the graph item.
+     * If the version changes, BadgeManager.getBadgeTypes()
+     * must be able to handle it.
+     * @see main.java.com.eweware.badging.mgr.BadgeManager#getBadgeTypes()
+     */
+    public static final String VERSION = "V";
 
     /**
      * The name of the domain (e.g., apple.com).
@@ -19,9 +27,9 @@ public class GraphDAOConstants {
     public static final String DOMAIN = "D";
 
     /**
-     * The name of one of the domain's abstractions.
-     * E.g., from apple.com, the abstraction might
+     * The name of one of the domain's inferred badges.
+     * E.g., from apple.com, the inferred badge name might
      * be "Tech Industry"
      */
-    public static final String ABSTRACTION = "A";
+    public static final String INFERRED_BADGE_NAME = "A";
 }

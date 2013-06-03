@@ -53,6 +53,7 @@ public final class BadgeManager {
     private static final String BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK = "<p>Your badge request has been granted. However, your sponsor has not been notified due to a network problem.</p>";
     private static final String BADGE_ALREADY_GRANTED_AND_ACTIVE = "<p>Your badge was granted in the past and is still active.</p>";
     private static final String HTTPS_PROTOCOL = "https://";
+    private static final int UNEXPECTED_VERSION = 1;
 
     private static BadgeManager singleton;
 
@@ -153,6 +154,41 @@ public final class BadgeManager {
 
     public HttpClient getHttpClient() {
         return client;
+    }
+
+    public Response getBadgeTypes() {
+        final HashMap<String, Object> entity = new HashMap<String, Object>();
+        final Set<String> domains = new HashSet<String>();
+        final List<LinkedHashMap<String, String>> types = new ArrayList<LinkedHashMap<String, String>>();
+        for (DBObject obj : graphCollection.find()) {
+            final String domain = (String) obj.get(GraphDAOConstants.DOMAIN);
+            final String inferred = (String) obj.get(GraphDAOConstants.INFERRED_BADGE_NAME);
+            final Integer version = (Integer) obj.get(GraphDAOConstants.VERSION);
+            if (version != null && version.equals(1)) {
+                domains.add(domain);
+                if (!domain.equals(inferred)) { // safety check in case of entry error (version should change in that case)
+                    types.add(makeBadgeTypeMap(domain, inferred, BadgeDAOConstants.BADGE_TYPE_INFERRED));
+                } else {
+                    logger.severe("Version 1 graph record maps a domain to a domain: should you bounce up the version for this record? dao: " + obj);
+                }
+            } else {
+                entity.put("errorCode", UNEXPECTED_VERSION);
+                return Response.status(200).entity(entity).build();
+            }
+        }
+        for (String domain : domains) {
+            types.add(makeBadgeTypeMap(domain, domain, BadgeDAOConstants.BADGE_TYPE_EMAIL));
+        }
+        entity.put("types", types);
+        return Response.ok().entity(entity).build();
+    }
+
+    private LinkedHashMap<String, String> makeBadgeTypeMap(String domain, String badgeName, String type) {
+        final LinkedHashMap<String, String> map = new LinkedHashMap<String, String>();
+        map.put("domain", domain);
+        map.put("badgeName", badgeName);
+        map.put("type", type);
+        return map;
     }
 
     /**
@@ -513,26 +549,26 @@ public final class BadgeManager {
             logger.finer("adding existing badge: " + existingEmailBadge);
         }
 
-        // Create abstracted badges, if any
+        // Create inferred badges, if any
         final BasicDBObject graphQuery = new BasicDBObject(GraphDAOConstants.DOMAIN, badgeName);
         final DBCursor cursor = graphCollection.find(graphQuery);
         for (DBObject obj : cursor) {
-            final String derivativeBadgeName = (String) obj.get(GraphDAOConstants.ABSTRACTION);
-            final DBObject existingDerivativeBadge = getBadge(derivativeBadgeName, email);
+            final String inferredBadgeName = (String) obj.get(GraphDAOConstants.INFERRED_BADGE_NAME);
+            final DBObject existingDerivativeBadge = getBadge(inferredBadgeName, email);
             if (existingDerivativeBadge == null) {
-                final Object abstractBadgeOrResponse = createBadge(derivativeBadgeName, email, BadgeDAOConstants.BADGE_TYPE_ABSTRACTION, expires, appId, txId, relativePath);
-                if (abstractBadgeOrResponse instanceof Response) {
-                    final Response response = (Response) abstractBadgeOrResponse;
-                    logger.warning("Tried to create abstract badge named '" + derivativeBadgeName + "' for email '" + email + "' but got a bad response status=" + response.getStatus() + " entity '" + response.getEntity() + "'");
-                    return (Response) abstractBadgeOrResponse;
-                } else if (!(abstractBadgeOrResponse instanceof DBObject)) {
+                final Object inferredBadgeOrResponse = createBadge(inferredBadgeName, email, BadgeDAOConstants.BADGE_TYPE_INFERRED, expires, appId, txId, relativePath);
+                if (inferredBadgeOrResponse instanceof Response) {
+                    final Response response = (Response) inferredBadgeOrResponse;
+                    logger.warning("Tried to create inferred badge named '" + inferredBadgeName + "' for email '" + email + "' but got a bad response status=" + response.getStatus() + " entity '" + response.getEntity() + "'");
+                    return (Response) inferredBadgeOrResponse;
+                } else if (!(inferredBadgeOrResponse instanceof DBObject)) {
                     // TODO deal with this case
                 }
-                badges.add((DBObject) abstractBadgeOrResponse);
-                logger.finer("Added abstract badge " + abstractBadgeOrResponse);
+                badges.add((DBObject) inferredBadgeOrResponse);
+                logger.finer("Added inferred badge " + inferredBadgeOrResponse);
             } else {
                 badges.add(existingDerivativeBadge);
-                logger.finer("Added existing abstract badge " + existingDerivativeBadge);
+                logger.finer("Added existing inferred badge " + existingDerivativeBadge);
             }
         }
 

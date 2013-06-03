@@ -32,7 +32,7 @@ public final class BadgingNotificationEntity {
     /**
      * The display name for the badge. In this case,
      * it is the domain name of the grantee's email address
-     * or an abstract name.
+     * or an inferred name.
      */
     public static final String BADGE_NAME_FIELDNAME = "N";
 

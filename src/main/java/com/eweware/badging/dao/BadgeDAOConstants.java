@@ -42,7 +42,7 @@ public class BadgeDAOConstants {
 
     /**
      * <p>Badge type, a String value. Supported types are "e" (based
-     * on email domain) and "a" (abstracted badge based on the
+     * on email domain) and "a" (inferred badge based on the
      * email domain).</p>
      */
     public static final String BADGE_TYPE_ID_FIELDNAME = "Y";
@@ -51,5 +51,5 @@ public class BadgeDAOConstants {
      * Badge type values
      */
     public static final String BADGE_TYPE_EMAIL = "e";
-    public static final String BADGE_TYPE_ABSTRACTION = "a";
+    public static final String BADGE_TYPE_INFERRED = "a";
 }
