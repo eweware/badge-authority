@@ -67,11 +67,13 @@ function ba_errf(a, b, c) {
 }
 
 function ba_start_spinner() {
-  if (!spinner) {
-    var el = document.getElementById('ba_form');
-  }
+  var el = document.getElementById('ba_form');
   if (el) {
-    spinner =  new Spinner(spinner_options).spin(target);
+      if (spinner == null) {
+          spinner =  new Spinner(spinner_options).spin(el);
+      } else {
+          spinner.spin(el)
+      }
   }
 }
 

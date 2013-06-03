@@ -396,9 +396,8 @@ public final class BadgeManager {
     private Response makeDomainNotSupportedResponse(String emailAddress) {
         final String domain = getEmailDomain(emailAddress);
         final StringBuilder b = new StringBuilder();
-        b.append("<script src='");
-        b.append(getEndpoint());
-        b.append("/js/ba_api.js'></script>");
+        addScriptElement(b, "/js/ba_api.js");
+        addScriptElement(b, "/js/spin.js");
         b.append("<form style='margin: 2em' id='ba_form' action='");
         b.append(getRestEndpoint());
         b.append("/badges/support' method='post'>");
@@ -706,10 +705,8 @@ public final class BadgeManager {
      */
     private String createInfoRequestForm(String txToken, String appDisplayName, boolean invalidEmail) {
         final StringBuilder b = new StringBuilder();
-        b.append("<script src='");
-        b.append(getEndpoint());
-        b.append("/js/ba_api.js'></script>");
-        b.append("<script src='/js/spin.js'></script>");
+        addScriptElement(b, "/js/ba_api.js");
+        addScriptElement(b, "/js/spin.js");
         b.append("<form style='margin: 2em' id='ba_form' action='");
         b.append(getRestEndpoint());
         b.append("/badges/credentials' method='post'>");
@@ -733,6 +730,14 @@ public final class BadgeManager {
         b.append("</form>");
 //        logger.info("createInfoRequestForm:\n" + b.toString());
         return b.toString();
+    }
+
+    private void addScriptElement(StringBuilder builder, String scriptLocation) {
+        builder.append("<script src='");
+        builder.append(getEndpoint());
+        builder.append(scriptLocation);
+        builder.append("'></script>");
+
     }
 
     private String createVerificationCodeRequestForm(String txToken, boolean retry) {
