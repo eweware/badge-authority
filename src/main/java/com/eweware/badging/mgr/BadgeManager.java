@@ -437,9 +437,9 @@ public final class BadgeManager {
         b.append("<form style='margin: 2em' id='ba_form' action='");
         b.append(getRestEndpoint());
         b.append("/badges/support' method='post'>");
-        b.append("<p>A badge for the domain '");
+        b.append("<p>Sorry, but badges for the domain '");
         b.append(domain);
-        b.append("' is not currently available.");
+        b.append("' are currently not available.");
         b.append(" To request that this domain be added, click the <b>Request Domain</b> button. ");
         b.append("We will retain your email address to inform you when your domain is available.</p>");
         b.append("  <div style='margin-left: 2em'>");
@@ -584,14 +584,14 @@ public final class BadgeManager {
         // Transmit badge(s) to sponsor app
         final Response response = transmitBadges(txId, appId, url, badges);
         logger.info("Granting badges to " + email + ": " + badges);
-        final StringBuilder msg = new StringBuilder("<p>Congratulations! Your badge request has been granted.</p>");
-        msg.append("<p>Your badge");
+        final StringBuilder msg = new StringBuilder("<p>Congratulations!  ");
+        msg.append("Your badge");
         if (badges.size() > 0) {
             msg.append("s");
         }
-        msg.append(" have been sent to ");
+        msg.append(" have been granted and sent to ");
         msg.append(appDisplayName);
-        msg.append(".");
+        msg.append(".</p>");
         return (response == null) ? makeGenericResponse("granted", msg.toString(), false) : response;
     }
 
@@ -750,12 +750,12 @@ public final class BadgeManager {
             b.append("<div style='color:red;margin-bottom:1em'>You entered an invalid email address. Please re-enter it.</div>");
         }
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
-        b.append("<div>Enter the email address that you would like to associate with your badges. We'll send a verification code to you to use in the next step in this process.</p>");
+        b.append("<p>To see if you qualify for a badge, please enter your email address below. Don't worry if your domain is not yet supported: You can enter a request to add it in the next page.</p>");
+        b.append("<p>If your email address <i>does</i> qualify, you will be emailed a code to enter in the following page.<p>");
         b.append("<div style='margin-top:1em'>Email Address: <input name='e' type='text' onchange='ba_email_address = this.value' size='30'/>");
-        b.append("<p style='margin:1em 2em'><b>Privacy Statement:</b> Your email address will be known only by this badging authority.");
-        b.append(" ");
+        b.append("<p style='margin:1em 2em'><b>Privacy Statement:</b> Only badges (not your email address) will be sent to ");
         b.append(appDisplayName);
-        b.append(", will not be sent this information.</p>");
+        b.append(".</p>");
         b.append("  <div style='margin-top: 1em'>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_tk' name='tk' value='" + txToken + "'/>");
@@ -785,8 +785,12 @@ public final class BadgeManager {
             b.append("<div style='margin-bottom:1em;color:red'>Sorry, the verification code that you entered was incorrect.</div>");
         }
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
+        if (retry) {
+            b.append("<p style='color:red'>You entered an invalid code.<p>");
+        }
+        b.append("<p>Badges are available for your email address.</p>");
         b.append("<div>Please ");
-        b.append(retry ? "re-enter" : "enter");
+        b.append(retry ? "<span style='color:red'>re-enter</span>" : "enter");
         b.append(" the verification code that was emailed to you: ");
         b.append("<div style='margin-top: 1em'>");
         b.append("Code: <input name='code' onchange='ba_verification_code = this.value' type='text' size='30' /></div>");
