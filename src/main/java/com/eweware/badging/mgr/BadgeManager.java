@@ -442,7 +442,7 @@ public final class BadgeManager {
         b.append("' are currently not available.");
         b.append(" To request that this domain be added, click the <b>Request Domain</b> button. ");
         b.append("We will retain your email address to inform you when your domain is available.</p>");
-        b.append("  <div style='margin-left: 2em'>");
+        b.append("  <div style='margin-left: 2em;margin-top: 1em;'>");
         b.append("    <input type='hidden' id='ba_end' name='end' value='" + getRestEndpoint() + "'/>");
         b.append("    <input type='hidden' id='ba_e' name='e' value='" + emailAddress + "'/>");
         b.append("    <input type='hidden' id='ba_d' name='d' value='" + domain + "'/>");
@@ -785,9 +785,6 @@ public final class BadgeManager {
             b.append("<div style='margin-bottom:1em;color:red'>Sorry, the verification code that you entered was incorrect.</div>");
         }
         // Note: onchange is a workaround to extract the value from the input field. Gave up trying to understand how this is "supposed" to work.
-        if (retry) {
-            b.append("<p style='color:red'>You entered an invalid code.<p>");
-        }
         b.append("<p>Badges are available for your email address.</p>");
         b.append("<div>Please ");
         b.append(retry ? "<span style='color:red'>re-enter</span>" : "enter");
