@@ -52,7 +52,7 @@ public final class BadgeManager {
     private static final String BADGE_GRANTED_BUT_NOT_ACCEPTED_BY_SPONSOR_APP = "<p>Your badge request has been granted, but due to a technical problem, your sponsor failed to accept the badge.</p><p>You may try to create the badge again.</p>";
     private static final String BADGE_GRANTED_BUT_SPONSOR_APP_FAILED_ACK = "<p>Your badge request has been granted. However, your sponsor has not been notified due to a network problem.</p>";
     private static final String BADGE_ALREADY_GRANTED_AND_ACTIVE = "<p>Your badge was granted in the past and is still active.</p>";
-    private static final String HTTPS_PROTOCOL = "https://";
+    private static final String HTTPS_PROTOCOL = "http://";
     private static final int UNEXPECTED_VERSION = 1;
 
     private static BadgeManager singleton;
