@@ -850,15 +850,15 @@ public final class BadgeManager {
 
     private void startHttpClient() {
         final SchemeRegistry schemeRegistry = new SchemeRegistry();
-        if (SystemManager.getInstance().isDevMode()) { // Debug blahguarest port 8080
+        if (main.java.com.eweware.badging.mgr.SystemManager.getInstance().isDevMode()) { // Debug blahguarest port 8080
             schemeRegistry.register(new Scheme("http", getDevBlahguarestPort(), PlainSocketFactory.getSocketFactory()));
         } else {
-            //schemeRegistry.register(new Scheme("http", 80, PlainSocketFactory.getSocketFactory()));
-            HostnameVerifier verifier = SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER;
-            final SSLSocketFactory sslSocketFactory = SSLSocketFactory.getSocketFactory();
-            sslSocketFactory.setHostnameVerifier((X509HostnameVerifier) verifier);
-            schemeRegistry.register(new Scheme("https", sslSocketFactory, 443));
-            HttpsURLConnection.setDefaultHostnameVerifier(verifier);
+            schemeRegistry.register(new Scheme("http", 80, PlainSocketFactory.getSocketFactory()));
+            //HostnameVerifier verifier = SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER;
+            //final SSLSocketFactory sslSocketFactory = SSLSocketFactory.getSocketFactory();
+            //sslSocketFactory.setHostnameVerifier((X509HostnameVerifier) verifier);
+            //schemeRegistry.register(new Scheme("http", sslSocketFactory, 80));
+            //HttpsURLConnection.setDefaultHostnameVerifier(verifier);
         }
         connectionPoolMgr = new PoolingClientConnectionManager(schemeRegistry);
         connectionPoolMgr.setMaxTotal(getMaxHttpConnections()); // maximum total connections

@@ -24,7 +24,8 @@ public final class SystemManager {
     private SecureRandom randomizer;
 
     public SystemManager() {
-        devMode = (System.getenv("BLAHGUA_DEV_MODE") != null);
+        //devMode = (System.getenv("BLAHGUA_DEV_MODE") != null);
+        devMode = true;
         final String randomProvider = "SHA1PRNG";
         try {
             this.randomizer = SecureRandom.getInstance(randomProvider);
