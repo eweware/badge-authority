@@ -59,6 +59,7 @@ public final class BadgeManager {
 
     private static final long TEN_MINUTES_IN_MS = (1000l * 60 * 10);
     private static final long FIFTEEN_MINUTES_IN_MS = (1000l * 60 * 15);
+    private static final long FORTYFIVE_MINUTES = (10001 * 60 * 45);
     private static final long ONE_YEAR_IN_MILLIS = (1000l * 60 * 60 * 24 * 365);
 
     public static final Pattern emailPattern = Pattern.compile("^[_A-Za-z0-9-]+(\\.[_A-Za-z0-9-]+)*@[A-Za-z0-9]+(\\.[A-Za-z0-9]+)*(\\.[A-Za-z]{2,})$");
@@ -382,7 +383,7 @@ public final class BadgeManager {
         if (retries != null && retries > 2) {
             transmitBadgeRefusal(tx, TransactionDAOConstants.REFUSAL_TOO_MANY_RETRIES);
             return makeGenericResponse("vertoomanyattempts", "<p>Sorry, too many attempts to enter verification code. Try again later.</p>", true);
-        } else if ((created.getTime() + TEN_MINUTES_IN_MS) < System.currentTimeMillis()) {
+        } else if ((created.getTime() + FORTYFIVE_MINUTES) < System.currentTimeMillis()) {
             transmitBadgeRefusal(tx, TransactionDAOConstants.REFUSAL_USER_TIMEOUT);
             return makeGenericResponse("vertimeout", VERIFICATION_TIMEOUT_MESSAGE, true);
         }
@@ -720,7 +721,7 @@ public final class BadgeManager {
         b.append("<div style='font-weight:bold'>");
         b.append(verificationCode);
         b.append("</div>");
-        b.append("<p>This code will expire in 15 minutes.</p>");
+        b.append("<p>This code will expire in 45 minutes.</p>");
         return b.toString();
     }
 
